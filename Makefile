@@ -1,10 +1,11 @@
 PYTHON ?= python3
+NODE ?= /opt/homebrew/bin/node
 PACKAGE := saucerswap_v3_replay
 
-.PHONY: help validate-config test compile layout
+.PHONY: help validate-config test compile layout export-metabase
 
 help:
-	@echo "Targets: validate-config test compile layout"
+	@echo "Targets: validate-config test compile layout export-metabase"
 
 validate-config:
 	PYTHONPATH=src $(PYTHON) -m $(PACKAGE).cli validate-config
@@ -17,3 +18,6 @@ compile:
 
 layout:
 	PYTHONPATH=src $(PYTHON) -m $(PACKAGE).cli layout
+
+export-metabase:
+	$(NODE) scripts/export_metabase_csv.js

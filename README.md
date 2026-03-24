@@ -61,3 +61,18 @@ This is the short version of the canonical build plan in `docs/planning/executio
 5. Add 3A pure-book lane
 6. Add 3B hybrid lane with study-owned admissibility rule
 7. Produce comparison pack and validation outputs
+
+## Reproducible local Metabase export
+
+On this host, the current first-pass extraction route is:
+
+```bash
+cd /Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness
+make export-metabase
+```
+
+Notes:
+- this route uses the signed-in local Chrome Metabase session on the host
+- macOS may prompt once for access to `Chrome Safe Storage`
+- outputs land under `data/raw/gigabrain/`
+- chunk metadata and checksummed export summaries land under `runs/rh02b-metabase-export-20260324/`
