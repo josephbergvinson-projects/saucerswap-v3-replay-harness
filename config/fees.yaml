@@ -1,0 +1,4 @@
+fees:
+  include_fees_in_headline: true
+  source_fee_treatment: "historical_when_available"
+  missing_fee_policy: "flag_and_continue"

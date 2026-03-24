@@ -1,0 +1,19 @@
+study:
+  name: "saucerswap-v3-replay-harness"
+  market: "HBAR/USDC"
+  source_protocol: "SaucerSwap V2"
+  source_pool_name: "HBAR/USDC V2 0.15%"
+  source_pool_id: 9
+  source_pool_address: "0.0.3964804"
+  timezone: "UTC"
+  reference_price_mode: "event_time_pre_trade"
+  replay_unit_mode: "tx_side_collapse_if_needed"
+  baseline_lane: "v2_realized"
+paths:
+  raw_dir: "data/raw/gigabrain"
+  interim_dir: "data/interim"
+  processed_dir: "data/processed"
+  reports_dir: "reports"
+outputs:
+  report_format: "markdown"
+  persist_lane_records: true

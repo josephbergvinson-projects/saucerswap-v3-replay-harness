@@ -1,0 +1,5 @@
+pure_book:
+  total_depth_usd: 20000
+  levels:
+    - { spread_bps: 2, weight: 1 }
+    - { spread_bps: 4, weight: 1 }

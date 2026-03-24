@@ -1,0 +1,8 @@
+{
+  "notes": "Toy fixture expectations for unit tests.",
+  "cases": [
+    "pure_book_partial_fill",
+    "hybrid_admissibility_fail",
+    "hybrid_admissibility_pass"
+  ]
+}

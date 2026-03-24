@@ -1,0 +1,5 @@
+reporting:
+  include_side_split: true
+  include_bucket_split: true
+  include_validation_summary: true
+  figure_dir: "reports/figures"

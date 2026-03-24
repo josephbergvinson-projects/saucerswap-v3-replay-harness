@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Replay Study Plan Locked</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 40px; line-height: 1.45; }
+    pre { white-space: pre-wrap; word-wrap: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Replay Study Plan Locked</h1>
+  <pre>## Objective
+Build an offline historical replay study for HBAR/USDC that compares realized SaucerSwap V2 execution against three comparison surfaces:
+- the published Lambdaplex benchmark panel
+- a synthetic V3 study lane with a pure replenishing order book
+- a synthetic V3 study lane with order book first and V2 used as a study-owned residual backstop
+
+The goal is to answer a narrow comparative question: given the same historical HBAR/USDC V2 flow, how do these study lanes compare on execution quality, completion, and economics?
+
+## Implementation posture
+- The first-pass study is fully implementable without further external help.
+- Remaining open questions are fidelity upgrades, not prerequisites.
+- 3B will be implemented as a study-owned hybrid rule with its assumptions made explicit in the report.
+
+## Claim boundary
+- This is a counterfactual historical replay study, not a product-fidelity simulator.
+- Any reference to “V3” below means a study-owned execution lane informed by the intended order-book / hybrid design, not an authoritative reconstruction of deployed SaucerSwap V3 behavior.
+- We should not claim that this study shows exactly how live V3 would have behaved historically.
+- A true historical V3 simulation appears out of scope for this pass and would likely require something like OrderHistory plus settlement-layer events and/or other engineering-truth data.
+
+## Working assumptions after review
+- Historical V2 should probably be reconstructable fairly accurately from existing indexed and internal data.
+- Historical V2 fee-tier history may be incomplete in places; that should be treated as a caveat and checked for materiality.
+- The hybrid lane cannot treat any available V2 quote as sufficient.
+- Residual size should only route to V2 when the study-owned admissibility rule says the backstop still satisfies the order constraint.
+- If that admissibility condition fails, the residual should remain unfilled.
+- Because authoritative historical V3 simulation is not yet available, the study should stay framed as a synthetic replay study.
+- These assumptions are sufficient to implement the first-pass study without further external help.
+
+## Comparison lanes
+- Comparison 1: realized SaucerSwap V2 execution from the historical dataset.
+- Comparison 2: published Lambdaplex benchmark panel, carried as an external benchmark rather than recomputed trade by trade by our code.
+- Comparison 3A: synthetic V3 study lane — pure book.
+- Comparison 3B: synthetic V3 study lane — hybrid with study-owned V2 residual backstop.
+
+## Revised scope
+- The first-pass study remains HBAR/USDC only.
+- The initial source market remains the HBAR/USDC V2 0.15% pool.
+- `pools_v2.id = 9`
+- `trade_data_v2.poolId = 0.0.3964804`
+- The first-pass pure-book profile still copies the published Lambdaplex grid assumptions.
+- The major scope adjustment is that 3B is no longer an unconditional “book first, then V2 if a quote exists” lane.
+- 3B will use a fixed study-owned admissibility rule to decide whether residual size may route to V2.
+- That makes 3B fully implementable now; later engineering input can improve fidelity but is not required to build the lane.
+
+## Locked decisions
+- The work should be built as an offline Python replay harness.
+- Recommended stack remains Python, Polars, DuckDB, Parquet, and config-driven assumptions.
+- Requested notional, not only filled notional, drives headline economics.
+- Partial fills and unfilled residuals must be visible in the main comparison pack.
+- Lambdaplex remains an external benchmark panel, not a lane falsely presented as being produced by the same replay engine.
+- The study should optimize for methodological clarity, auditability, and comparability rather than for product-fidelity claims.
+
+## Phase 0 — methodology lock
+The following are study-owned decisions and should be frozen before implementation begins:
+- exact study window and timezone
+- replay unit and transaction-collapse rule
+- event ordering convention
+- primary reference-price convention and fallback
+- headline treatment of partial fills and unfilled residuals
+- requested-notional bucket definitions
+- naming boundary for 3A and 3B so they are understood as study lanes rather than product claims
+- the admissibility rule used to decide whether a residual can route to V2 in 3B
+
+At minimum, the normalized dataset should preserve or reconstruct:
+- consensus timestamp or equivalent ordering field
+- transaction identifier
+- event or log index
+- side
+- normalized token amounts
+- enough information to reason about order intent and any recoverable limit constraint, or else enough information to apply the chosen study-owned admissibility proxy consistently
+
+## Revised lane definitions
+### Realized SaucerSwap V2 baseline
+Use the historical HBAR/USDC V2 dataset to compute actual realized execution, fees, and comparison metrics. This remains the canonical baseline.
+
+### Lambdaplex benchmark panel
+Carry Lambdaplex as a published benchmark panel with explicit assumptions notes. Do not overstate it as a replay lane produced by our own engine.
+
+### 3A — Synthetic V3 study lane: pure book
+For each replay unit:
+- center a replenishing synthetic order book on the chosen pre-trade reference price
+- use the published Lambdaplex grid profile in the first pass
+- walk the book until the requested size is filled or the book is exhausted
+- record filled size, remainder, completion ratio, execution price, and slippage metrics
+
+This lane remains a study-owned pure-book comparison surface, not a claim about live V3 behavior.
+
+### 3B — Synthetic V3 study lane: hybrid with study-owned V2 backstop rule
+For each replay unit:
+- execute against the same synthetic book first
+- if residual size remains, reconstruct the historical V2 residual execution available for that residual size
+- apply the Phase 0 study-owned admissibility rule to decide whether the residual may route to V2
+- if the admissibility test passes, route the residual to V2 and blend the fills
+- if the admissibility test fails, leave the residual unfilled
+
+This is the key guardrail. A quote existing is not by itself sufficient; the backstop must also pass the lane’s admissibility rule.
+
+If the historical dataset does not expose the original order constraint directly, the study will use an explicit proxy rule frozen in Phase 0 and disclosed in the report. That is acceptable because 3B is a study-owned hybrid lane, not a claim about canonical product behavior.
+
+## Data and reconstruction requirements
+The historical tape is likely good enough to build the full first-pass study, including 3B, so long as the hybrid admissibility rule is defined as a study-owned assumption in Phase 0.
+
+Additional data or engineering clarification would improve fidelity, especially on:
+- canonical historical V2 quote or state reconstruction for arbitrary residual size
+- exact pre-trade ordering semantics
+- fee semantics, including any fee-tier-history gaps
+- whether a closer proxy to the original order-level admissibility rule is recoverable
+
+None of those are prerequisites to building the first-pass harness. They are fidelity upgrades.
+
+## Implementation plan
+### Phase 1 — extract and normalize data
+- extract the HBAR/USDC V2 historical dataset from Gigabrain / Metabase
+- normalize into replay-ready parquet datasets
+- preserve ordering and reconciliation fields
+- create a replay-unit table consistent with the Phase 0 collapse rule
+
+### Phase 2 — build the baseline and shared metrics engine
+- compute the realized V2 baseline
+- define one common execution record across replay lanes
+- compute headline and supplemental metrics consistently
+
+### Phase 3 — build 3A pure-book replay
+- implement the config-driven Lambdaplex-style replenishing book
+- run the historical flow through the pure-book lane
+- produce trade-level and aggregate comparison outputs
+
+### Phase 4 — build 3B hybrid replay
+- implement the historical V2 residual quote / state reconstruction path using available historical data
+- implement the Phase 0 admissibility rule for residual routing
+- route residual only when the study-owned order-constraint rule is satisfied
+- otherwise leave residual unfilled
+
+### Phase 5 — validate and report
+- reconcile row counts and requested-notional totals
+- validate V2 reconstruction against realized V2 within tolerance where possible
+- use engineering golden examples for pure-book and hybrid sampled cases
+- produce a concise review pack with caveats visible
+
+## Implementation status
+- The study is fully unblocked for implementation.
+- V2 baseline, Lambdaplex benchmark integration, 3A, and 3B can all be built without further external help.
+- Additional engineering input would be useful only as a later fidelity upgrade, not as a prerequisite.
+
+## Optional future fidelity checks
+- What is the best canonical source for quoting or reconstructing arbitrary residual size against historical HBAR/USDC V2 state?
+- Do current indexed datasets expose enough information to reconstruct exact pre-trade V2 state, ordering, and fee semantics, or would another internal source tighten fidelity?
+- Is there a better direct recovery path for the original order-level admissibility rule than the study-owned proxy?
+- Can engineering later provide a small golden validation pack with expected pure-book and hybrid outcomes?
+
+## Deliverables
+### Base pack
+- reproducible HBAR/USDC V2 historical dataset
+- normalized replay-unit dataset
+- realized V2 baseline metrics
+- Lambdaplex benchmark panel integration
+- 3A pure-book metrics and comparison tables
+- 3B hybrid metrics and comparison tables
+- methodology and assumptions memo
+- explicit caveat note that 3B is a study-owned hybrid lane rather than canonical product behavior
+
+## Key caveats
+- This study evaluates the same historical flow under counterfactual execution environments. It is not a forecast of future market share or future volume.
+- The replenishing synthetic book is a study assumption and likely an upper-bound liquidity representation rather than a live-inventory model.
+- Fee-tier-history gaps on the V2 side may or may not be material; they should be checked rather than ignored.
+- The strongest reputational risk is over-reading 3A or 3B as proof of live V3 behavior. The document should avoid that claim boundary throughout.
+</pre>
+</body>
+</html>

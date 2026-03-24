@@ -1,0 +1,6 @@
+hybrid_rule:
+  mode: "slippage_cap_bps"
+  max_buy_slippage_bps: 50
+  max_sell_slippage_bps: 50
+  require_backstop_quote: true
+  notes: "Study-owned first-pass admissibility proxy; replaceable if a better historical recovery path emerges."

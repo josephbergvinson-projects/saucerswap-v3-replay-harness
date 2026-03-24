@@ -1,0 +1,10 @@
+pure_book:
+  total_depth_usd: 20000
+  levels:
+    - { spread_bps: 2, weight: 1 }
+    - { spread_bps: 4, weight: 1 }
+    - { spread_bps: 8, weight: 2 }
+    - { spread_bps: 16, weight: 3 }
+    - { spread_bps: 32, weight: 5 }
+    - { spread_bps: 64, weight: 8 }
+  replenish_per_replay_unit: true
