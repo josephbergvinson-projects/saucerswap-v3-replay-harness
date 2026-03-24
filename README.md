@@ -90,3 +90,19 @@ This materializes:
 - `data/interim/normalized_events.csv`
 - `data/interim/replay_units.csv`
 - `data/interim/normalization-manifest.json`
+
+## Realized V2 baseline rerun
+
+Once the RH-03 interim artifacts exist under `data/interim/`, build the realized baseline lane with:
+
+```bash
+cd /Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness
+make v2-baseline
+```
+
+This materializes:
+- `data/processed/lane_v2_baseline.csv`
+- `data/processed/v2_baseline_summary.json`
+- `data/processed/v2_baseline_manifest.json`
+
+The baseline path is deterministic and one-to-one with the normalized replay-unit dataset: one replay unit becomes one realized V2 baseline record, with `replay_unit_id`, `tradeRowId`, `swapEventId`, and `source_ordering_key` preserved for reconciliation.
