@@ -1,6 +1,9 @@
 hybrid_rule:
   mode: "slippage_cap_bps"
+  reference_price_basis: "replay_unit_reference_price"
+  quote_requirement: "recoverable_v2_residual_quote_required"
   max_buy_slippage_bps: 50
   max_sell_slippage_bps: 50
   require_backstop_quote: true
-  notes: "Study-owned first-pass admissibility proxy; replaceable if a better historical recovery path emerges."
+  failure_policy: "leave_residual_unfilled"
+  notes: "Study-owned first-pass admissibility proxy; symmetric 50 bps maximum realized slippage allowance versus the replay-unit reference price; replaceable if a better historical recovery path emerges."

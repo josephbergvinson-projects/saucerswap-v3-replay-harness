@@ -1,4 +1,7 @@
 fees:
   include_fees_in_headline: true
+  headline_metric_basis: "requested_notional"
+  filled_only_metrics: "supplemental_only"
   source_fee_treatment: "historical_when_available"
   missing_fee_policy: "flag_and_continue"
+  impute_missing_fees: false

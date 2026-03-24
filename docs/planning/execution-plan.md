@@ -258,10 +258,11 @@ Mitigation:
 - freeze the collapse rule early
 - sample-check collapsed transactions
 
-### Weak 3B admissibility proxy
-If the rule is vague, 3B becomes hard to interpret.
+### First-pass 3B admissibility proxy interpretation
+If the rule is vague or silently shifts, 3B becomes hard to interpret.
 
 Mitigation:
+- freeze the first-pass proxy explicitly in Phase 0
 - keep the rule isolated in one module
 - make it configurable
 - disclose it in the review pack

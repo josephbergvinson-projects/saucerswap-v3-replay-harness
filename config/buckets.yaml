@@ -1,3 +1,5 @@
+bucket_edge_semantics: "lower_inclusive_upper_exclusive_except_last"
+bucket_basis: "requested_notional"
 requested_notional_buckets:
   - { label: "<1k", min: 0, max: 1000 }
   - { label: "1k-5k", min: 1000, max: 5000 }

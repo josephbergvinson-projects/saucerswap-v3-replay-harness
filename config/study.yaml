@@ -6,8 +6,17 @@ study:
   source_pool_id: 9
   source_pool_address: "0.0.3964804"
   timezone: "UTC"
+  window_mode: "full_available_source_history"
+  window_start_utc: null
+  window_end_utc: null
+  window_recorded_in: "extract-manifest.json"
   reference_price_mode: "event_time_pre_trade"
+  reference_price_fallback_mode: "nearest_earlier_else_nearest_later_flagged"
   replay_unit_mode: "tx_side_collapse_if_needed"
+  replay_unit_grouping: "tx_id_plus_side"
+  replay_unit_cross_side_policy: "never_collapse_opposite_sides"
+  replay_unit_ordering: "timestamp_then_event_index"
+  synthetic_book_reset: "per_replay_unit"
   baseline_lane: "v2_realized"
 paths:
   raw_dir: "data/raw/gigabrain"
