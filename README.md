@@ -11,6 +11,12 @@ Offline historical replay harness for the HBAR/USDC study comparing:
 
 This repository is the standalone source tree for the replay study harness. It is intentionally separate from any SaucerSwap production repository.
 
+## Canonical build plan
+
+- Primary execution document: `docs/planning/execution-plan.md`
+- Frozen planning source: `docs/planning/replay-study-plan-locked.md`
+- Phase 0 methodology lock: `docs/methodology/phase-0-lock.md`
+
 ## Project layout
 
 - `docs/planning/` — frozen planning inputs and Notion export snapshots
@@ -41,7 +47,9 @@ python -m unittest discover -s tests
 
 This is a counterfactual historical replay harness, not a product-fidelity simulator for deployed SaucerSwap V3.
 
-## First implementation slices
+## Build sequence summary
+
+This is the short version of the canonical build plan in `docs/planning/execution-plan.md`.
 
 1. Freeze Phase 0 assumptions in `docs/methodology/phase-0-lock.md` and `config/*.yaml`
 2. Extract HBAR/USDC V2 0.15% historical flow from Gigabrain
