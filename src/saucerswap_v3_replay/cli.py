@@ -8,6 +8,7 @@ from .baseline.v2_realized import run_v2_realized_baseline
 from .extract.gigabrain import build_extract_manifest, write_extract_manifest
 from .normalize.pipeline import run_normalization
 from .settings import load_study_settings
+from .sim.pure_book import run_pure_book_lane
 
 
 def cmd_validate_config(_: argparse.Namespace) -> int:
@@ -68,6 +69,23 @@ def cmd_v2_baseline(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_pure_book(args: argparse.Namespace) -> int:
+    root = Path(args.root).resolve()
+    result = run_pure_book_lane(root)
+    payload = {
+        'lane_output_path': str(result.lane_output_path.relative_to(root)),
+        'summary_path': str(result.summary_path.relative_to(root)),
+        'manifest_path': str(result.manifest_path.relative_to(root)),
+        'row_counts': result.summary['row_counts'],
+        'completion': result.summary['completion'],
+        'slippage_bps': result.summary['slippage_bps'],
+        'fees': result.summary['fees'],
+        'reconciliation': result.summary['reconciliation'],
+    }
+    print(json.dumps(payload, indent=2))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog='saucerswap-v3-replay')
     sub = parser.add_subparsers(dest='command', required=True)
@@ -90,6 +108,10 @@ def build_parser() -> argparse.ArgumentParser:
     baseline = sub.add_parser('v2-baseline', help='Build the realized V2 baseline lane from normalized event-level replay units')
     baseline.add_argument('--root', default='.', help='Repo/worktree root to build from')
     baseline.set_defaults(func=cmd_v2_baseline)
+
+    pure_book = sub.add_parser('pure-book', help='Build the 3A pure-book lane from normalized event-level replay units')
+    pure_book.add_argument('--root', default='.', help='Repo/worktree root to build from')
+    pure_book.set_defaults(func=cmd_pure_book)
     return parser
 
 

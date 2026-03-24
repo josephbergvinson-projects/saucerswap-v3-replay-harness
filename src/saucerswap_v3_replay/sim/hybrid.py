@@ -11,7 +11,7 @@ from .pure_book import walk_replenishing_book
 def simulate_hybrid(unit: ReplayUnit, levels: list[BookLevel], residual_quote: ResidualQuote | None, max_slippage_bps: float) -> ExecutionRecord:
     book_fill = walk_replenishing_book(unit, levels)
     filled_size = book_fill.filled_size
-    weighted_notional = book_fill.filled_size * book_fill.avg_execution_price
+    weighted_notional = book_fill.filled_notional
     route_breakdown = {'pure_book': book_fill.filled_size}
     admissibility_passed = None
 

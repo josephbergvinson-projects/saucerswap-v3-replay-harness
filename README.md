@@ -110,3 +110,19 @@ This materializes:
 - `data/processed/v2_baseline_manifest.json`
 
 The baseline path is deterministic and one-to-one with the normalized replay-unit dataset: one replay unit becomes one realized V2 baseline record, with `replay_unit_id`, `tradeRowId`, `swapEventId`, and `source_ordering_key` preserved for reconciliation.
+
+## 3A pure-book rerun
+
+Once the RH-03 interim artifacts exist under `data/interim/`, build the 3A pure-book lane with:
+
+```bash
+cd /Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness
+make pure-book
+```
+
+This materializes:
+- `data/processed/lane_3a_pure_book.csv`
+- `data/processed/pure_book_summary.json`
+- `data/processed/pure_book_manifest.json`
+
+The 3A path reuses the existing RH-03 replay inputs, loads the study-owned replenishing ladder from `config/lambdaplex_book.yaml`, emits one pure-book execution record per replay unit, and preserves `replay_unit_id`, `tradeRowId`, `swapEventId`, `tradeTimestampSeconds`, and `source_ordering_key` for reconciliation.
