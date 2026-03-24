@@ -13,6 +13,8 @@ data/raw/*
 !data/raw/gigabrain/
 data/raw/gigabrain/*
 !data/raw/gigabrain/.gitkeep
+!data/raw/gigabrain/extract-manifest.json
+!data/raw/gigabrain/metabase-live-observations.json
 
 data/interim/*
 !data/interim/.gitkeep

@@ -1,0 +1,181 @@
+{
+  "status": "blocked_missing_access",
+  "generated_at_utc": "2026-03-24T15:04:36Z",
+  "study": {
+    "name": "saucerswap-v3-replay-harness",
+    "market": "HBAR/USDC",
+    "source_protocol": "SaucerSwap V2",
+    "source_pool_name": "HBAR/USDC V2 0.15%",
+    "source_pool_id": 9,
+    "source_pool_address": "0.0.3964804",
+    "timezone": "UTC",
+    "reference_price_mode": "event_time_pre_trade",
+    "replay_unit_mode": "tx_side_collapse_if_needed",
+    "baseline_lane": "v2_realized"
+  },
+  "access_probe": {
+    "env_files_loaded": [],
+    "candidate_env_files_present": [],
+    "mysql": {
+      "kind": "mysql",
+      "ready": false,
+      "missing_keys": [
+        "GIGABRAIN_MYSQL_HOST",
+        "GIGABRAIN_MYSQL_PORT",
+        "GIGABRAIN_MYSQL_DATABASE",
+        "GIGABRAIN_MYSQL_USER",
+        "GIGABRAIN_MYSQL_PASSWORD"
+      ]
+    },
+    "metabase": {
+      "kind": "metabase",
+      "ready": false,
+      "missing_keys": [
+        "METABASE_URL",
+        "METABASE_API_KEY",
+        "METABASE_CARD_ID_TRADES",
+        "METABASE_CARD_ID_SWAP_METADATA",
+        "METABASE_CARD_ID_PRICES"
+      ]
+    }
+  },
+  "queries": [
+    {
+      "name": "trades",
+      "sql_path": "sql/extract_hbar_usdc_v2_015_trades.sql",
+      "output_path": "data/raw/gigabrain/hbar_usdc_v2_015_trades.parquet",
+      "extract_status": "not_run_missing_access",
+      "row_count": null,
+      "min_timestamp": null,
+      "max_timestamp": null,
+      "field_inventory": {
+        "source": "sql_template",
+        "fields": [
+          "tradeRowId",
+          "swapEventId",
+          "poolContractId",
+          "tradeTimestampSeconds",
+          "baseId",
+          "targetId",
+          "baseVolume",
+          "targetVolume",
+          "price",
+          "type",
+          "contractId",
+          "sender",
+          "recipient",
+          "amountA",
+          "amountB",
+          "sqrtRatioX96",
+          "liquidity",
+          "tick",
+          "swapEventTimestampSeconds",
+          "swapSource"
+        ],
+        "known": true,
+        "notes": "Projected fields inferred from the SQL template."
+      }
+    },
+    {
+      "name": "swap_metadata",
+      "sql_path": "sql/extract_hbar_usdc_v2_015_swap_metadata.sql",
+      "output_path": "data/raw/gigabrain/hbar_usdc_v2_015_swap_metadata.parquet",
+      "extract_status": "not_run_missing_access",
+      "row_count": null,
+      "min_timestamp": null,
+      "max_timestamp": null,
+      "field_inventory": {
+        "source": "sql_template",
+        "fields": [
+          "metadataRowId",
+          "swap_id",
+          "source",
+          "contractId",
+          "timestampSeconds",
+          "sender",
+          "recipient",
+          "amountA",
+          "amountB",
+          "sqrtRatioX96",
+          "liquidity",
+          "tick"
+        ],
+        "known": true,
+        "notes": "Projected fields inferred from the SQL template."
+      }
+    },
+    {
+      "name": "reference_prices",
+      "sql_path": "sql/extract_hbar_reference_prices.sql",
+      "output_path": "data/raw/gigabrain/hbar_reference_prices.parquet",
+      "extract_status": "not_run_missing_access",
+      "row_count": null,
+      "min_timestamp": null,
+      "max_timestamp": null,
+      "field_inventory": {
+        "source": "sql_template",
+        "fields": [
+          "id",
+          "poolId",
+          "timestampSeconds",
+          "price"
+        ],
+        "known": true,
+        "notes": "Projected fields inferred from the SQL template."
+      }
+    },
+    {
+      "name": "fee_inputs",
+      "sql_path": "sql/extract_v2_fee_inputs.sql",
+      "output_path": "data/raw/gigabrain/v2_fee_inputs.parquet",
+      "extract_status": "not_run_missing_access",
+      "row_count": null,
+      "min_timestamp": null,
+      "max_timestamp": null,
+      "field_inventory": {
+        "source": "sql_template",
+        "fields": [
+          "id",
+          "poolVersion",
+          "poolId",
+          "timestampSeconds",
+          "fee",
+          "feeUsd",
+          "feeSaucerswapUi",
+          "feeSaucerswapUiUsd",
+          "feeSaucerswapApp",
+          "feeSaucerswapAppUsd",
+          "feeHashpack",
+          "feeHashpackUsd",
+          "feeKabilia",
+          "feeKabiliaUsd",
+          "feeBlade",
+          "feeBladeUsd",
+          "feeEtaSwap",
+          "feeEtaSwapUsd",
+          "feeSaucerswapAppAndroid",
+          "feeSaucerswapAppAndroidUsd"
+        ],
+        "known": true,
+        "notes": "Projected fields inferred from the SQL template."
+      }
+    }
+  ],
+  "realized_window": {
+    "min_timestamp": null,
+    "max_timestamp": null,
+    "timezone": "UTC",
+    "notes": "Unknown until a live extract succeeds."
+  },
+  "blocker_notes": [
+    "No discoverable Gigabrain MySQL or Metabase credential set was found in the process environment or repo-local .env candidates; live read-only extract was therefore not runnable from this worktree."
+  ],
+  "normalization_readiness": {
+    "can_start": false,
+    "decision": "RH-03 cannot begin immediately; extraction access and field verification must be completed first.",
+    "missing_requirements": [
+      "live historical extract access is not configured",
+      "raw trades extract is not materialized locally"
+    ]
+  }
+}

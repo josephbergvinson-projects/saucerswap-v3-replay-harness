@@ -1,0 +1,152 @@
+{
+  "captured_at_utc": "2026-03-24T14:58:00Z",
+  "route": {
+    "kind": "interactive_browser_metabase",
+    "surface": "chrome-relay",
+    "url": "https://gigabrain.saucerswap.finance/",
+    "database_id": 2,
+    "database_name": "SaucerSwap MySQL"
+  },
+  "pool": {
+    "study_pool_id": 9,
+    "study_pool_contract_id": "0.0.3964804",
+    "market": "HBAR/USDC",
+    "source_pool_name": "HBAR/USDC V2 0.15%"
+  },
+  "tables": {
+    "trade_data_v2": {
+      "table_id": 118,
+      "fields": [
+        "id",
+        "swapEventId",
+        "poolId",
+        "timestampSeconds",
+        "baseId",
+        "targetId",
+        "baseVolume",
+        "targetVolume",
+        "price",
+        "type"
+      ],
+      "native_sql_summary": "SELECT COUNT(*) AS row_count, MIN(timestampSeconds) AS min_ts, MAX(timestampSeconds) AS max_ts FROM trade_data_v2 WHERE poolId = '0.0.3964804'",
+      "row_count": 7255957,
+      "min_timestamp": 1700264033,
+      "max_timestamp": 1774363967
+    },
+    "swap_events": {
+      "table_id": 78,
+      "fields": [
+        "id",
+        "contractId",
+        "sender",
+        "recipient",
+        "amountA",
+        "amountB",
+        "sqrtRatioX96",
+        "liquidity",
+        "tick",
+        "timestampSeconds"
+      ],
+      "native_sql_summary": "SELECT COUNT(*) AS row_count, MIN(timestampSeconds) AS min_ts, MAX(timestampSeconds) AS max_ts FROM swap_events WHERE contractId = '0.0.3964804'",
+      "row_count": 7272073,
+      "min_timestamp": 1700264033.35596,
+      "max_timestamp": 1774363967.7268608
+    },
+    "v2_swap_metadata": {
+      "table_id": 110,
+      "fields": [
+        "id",
+        "swap_id",
+        "source"
+      ],
+      "joined_native_sql_summary": "SELECT COUNT(*) AS row_count, MIN(se.timestampSeconds) AS min_ts, MAX(se.timestampSeconds) AS max_ts FROM v2_swap_metadata sm JOIN swap_events se ON se.id = sm.swap_id WHERE se.contractId = '0.0.3964804'",
+      "joined_row_count": 103740,
+      "joined_min_timestamp": 1703990622.250907,
+      "joined_max_timestamp": 1774309861.152549
+    },
+    "pools_v2": {
+      "table_id": 76,
+      "fields": [
+        "id",
+        "contractId",
+        "tokenIdA",
+        "tokenIdB",
+        "fee",
+        "tickSpacing",
+        "sqrtRatioX96",
+        "liquidity",
+        "tickCurrent",
+        "amountA",
+        "amountB",
+        "lastEventTimestampSeconds",
+        "createdAt"
+      ],
+      "pool_row": {
+        "id": 9,
+        "contractId": "0.0.3964804",
+        "tokenIdA": "0.0.456858",
+        "tokenIdB": "0.0.1456986",
+        "fee": 1500,
+        "tickSpacing": 30
+      }
+    },
+    "pools_v2_prices_minute": {
+      "table_id": 103,
+      "fields": [
+        "id",
+        "price",
+        "timestampSeconds",
+        "poolId"
+      ],
+      "native_sql_summary": "SELECT COUNT(*) AS row_count, MIN(timestampSeconds) AS min_ts, MAX(timestampSeconds) AS max_ts FROM pools_v2_prices_minute WHERE poolId = 9",
+      "row_count": 1233661,
+      "min_timestamp": 1700239200,
+      "max_timestamp": 1774363860
+    },
+    "pool_fees_day": {
+      "table_id": 88,
+      "fields": [
+        "id",
+        "poolVersion",
+        "poolId",
+        "timestampSeconds",
+        "fee",
+        "feeUsd",
+        "feeSaucerswapUi",
+        "feeSaucerswapUiUsd",
+        "feeSaucerswapApp",
+        "feeSaucerswapAppUsd",
+        "feeHashpack",
+        "feeHashpackUsd",
+        "feeKabilia",
+        "feeKabiliaUsd",
+        "feeBlade",
+        "feeBladeUsd",
+        "feeEtaSwap",
+        "feeEtaSwapUsd",
+        "feeSaucerswapAppAndroid",
+        "feeSaucerswapAppAndroidUsd"
+      ],
+      "native_sql_summary": "SELECT COUNT(*) AS row_count, MIN(timestampSeconds) AS min_ts, MAX(timestampSeconds) AS max_ts FROM pool_fees_day WHERE poolId = 9",
+      "row_count": 510,
+      "min_timestamp": 1751414400,
+      "max_timestamp": 1774310400
+    },
+    "hbar_prices_minute": {
+      "table_id": 101,
+      "fields": [
+        "id",
+        "price",
+        "timestampSeconds"
+      ],
+      "native_sql_summary": "SELECT COUNT(*) AS row_count, MIN(timestampSeconds) AS min_ts, MAX(timestampSeconds) AS max_ts FROM hbar_prices_minute",
+      "row_count": 892625,
+      "min_timestamp": 1659560400,
+      "max_timestamp": 1774363860
+    }
+  },
+  "ordering_gap": {
+    "status": "still_open",
+    "note": "No transaction-hash, consensus-timestamp, log-index, or explicit per-transaction ordering field was found in the exposed trade_data_v2, swap_events, or v2_swap_metadata tables during this Metabase session."
+  }
+}
