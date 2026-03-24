@@ -1,5 +1,5 @@
 {
-  "captured_at_utc": "2026-03-24T14:58:00Z",
+  "captured_at_utc": "2026-03-24T15:16:00Z",
   "route": {
     "kind": "interactive_browser_metabase",
     "surface": "chrome-relay",
@@ -30,6 +30,7 @@
       ],
       "native_sql_summary": "SELECT COUNT(*) AS row_count, MIN(timestampSeconds) AS min_ts, MAX(timestampSeconds) AS max_ts FROM trade_data_v2 WHERE poolId = '0.0.3964804'",
       "row_count": 7255957,
+      "distinct_swap_event_count": 7255949,
       "min_timestamp": 1700264033,
       "max_timestamp": 1774363967
     },
@@ -145,8 +146,39 @@
       "max_timestamp": 1774363860
     }
   },
-  "ordering_gap": {
-    "status": "still_open",
-    "note": "No transaction-hash, consensus-timestamp, log-index, or explicit per-transaction ordering field was found in the exposed trade_data_v2, swap_events, or v2_swap_metadata tables during this Metabase session."
+  "provenance_scan": {
+    "method": [
+      "Metabase query metadata scan",
+      "information_schema.columns scan"
+    ],
+    "target_patterns": [
+      "txHash",
+      "transactionHash",
+      "transaction_id",
+      "transactionId",
+      "consensusTimestamp",
+      "logIndex",
+      "eventIndex",
+      "transactionIndex",
+      "sequence",
+      "ordinal",
+      "position"
+    ],
+    "relevant_v2_tables_checked": [
+      "trade_data_v2",
+      "swap_events",
+      "v2_swap_metadata",
+      "pools_v2",
+      "pools_v2_prices_minute",
+      "pool_fees_day"
+    ],
+    "result": "none_found_in_relevant_v2_swap_trade_pool_tables",
+    "non_relevant_hits": [
+      { "table": "fill_events", "columns": ["txHash"] },
+      { "table": "order_fills", "columns": ["txHash"] },
+      { "table": "order_history", "columns": ["txHash"] },
+      { "table": "orders", "columns": ["hcsInitialTransactionId"] },
+      { "table": "account_balances", "columns": ["transactionId", "consensusTimestamp", "parentConsensusTimestamp"] }
+    ]
   }
 }

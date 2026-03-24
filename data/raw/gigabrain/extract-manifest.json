@@ -1,6 +1,6 @@
 {
   "status": "blocked_missing_access",
-  "generated_at_utc": "2026-03-24T15:04:36Z",
+  "generated_at_utc": "2026-03-24T15:25:43Z",
   "study": {
     "name": "saucerswap-v3-replay-harness",
     "market": "HBAR/USDC",
@@ -10,7 +10,7 @@
     "source_pool_address": "0.0.3964804",
     "timezone": "UTC",
     "reference_price_mode": "event_time_pre_trade",
-    "replay_unit_mode": "tx_side_collapse_if_needed",
+    "replay_unit_mode": "one_trade_row_per_replay_unit",
     "baseline_lane": "v2_realized"
   },
   "access_probe": {

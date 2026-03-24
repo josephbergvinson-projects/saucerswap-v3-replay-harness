@@ -16,4 +16,4 @@ Keep the rule explicit, configurable, testable, and easy to swap later if a high
 
 ## Claim boundary
 
-This is a study-owned first-pass proxy, not a claim about canonical product behavior. If a recoverable order-level admissibility rule becomes available later, it should replace this proxy through an explicit methodology change.
+This is a study-owned first-pass proxy under an event-level replay benchmark, not a claim about canonical product behavior or true order-level reconstruction. Under this contract, residual means the remainder of the observed event-level replay unit. If a recoverable order-level admissibility rule becomes available later, it should replace this proxy through an explicit methodology change.

@@ -1,6 +1,6 @@
 # Phase 0 Lock
 
-These assumptions are frozen for RH-01. Extraction, normalization, and the first-pass replay lanes should treat them as the study-owned baseline until they are explicitly revised.
+These assumptions are frozen for the first-pass study unless they are explicitly revised through a documented methodology change.
 
 ## Locked scope boundary
 
@@ -11,6 +11,14 @@ These assumptions are frozen for RH-01. Extraction, normalization, and the first
 - Canonical realized baseline lane: `v2_realized`
 - 3A and 3B remain study-owned comparison lanes, not claims about canonical deployed V3 behavior.
 
+## Locked replay contract
+
+- The first-pass study contract is an **event-level replay benchmark**.
+- It is not a true order-level reconstruction.
+- This contract amendment is driven by the RH-02 live Gigabrain scan recorded in `docs/methodology/replay-contract.md`.
+- No transaction-hash, transaction-id, consensus-timestamp, log-index, event-index, or equivalent per-transaction ordering field was found in the exposed V2 swap/trade/pool tables used by this study.
+- Stronger order-level claims remain out of scope unless a better provenance surface is recovered later.
+
 ## Locked study window and timezone
 
 - Timezone is frozen to `UTC`.
@@ -20,13 +28,14 @@ These assumptions are frozen for RH-01. Extraction, normalization, and the first
 
 ## Locked replay-unit rule
 
-- Replay units collapse same-transaction, same-side event rows into one replay unit when multiple rows represent the same logical request.
+- One observed `trade_data_v2` row is the canonical first-pass replay unit.
+- `tradeRowId` is the canonical replay-unit anchor.
+- `swapEventId` is preserved as the parent event reference.
+- No cross-row collapse is allowed without explicit transaction-boundary evidence.
 - Replay units never collapse across opposite sides.
-- Replay units never collapse across transaction ids.
-- The normalized dataset must preserve the transaction id plus the event / log ordering fields needed to audit each collapse.
-- Within a collapsed unit, the harness preserves the earliest ordering anchor and records collapsed-event count metadata.
+- The normalized dataset must preserve the ordering fields that do exist: `tradeTimestampSeconds`, `swapEventId`, and `tradeRowId`.
 - The synthetic book is reset per replay unit for both 3A and 3B.
-- Downstream replay ordering remains timestamp-first with event / log index as the tie-breaker.
+- Downstream replay ordering is `tradeTimestampSeconds`, then `swapEventId`, then `tradeRowId`.
 
 ## Locked reference-price convention
 
@@ -53,7 +62,7 @@ These assumptions are frozen for RH-01. Extraction, normalization, and the first
 - Filled-only execution metrics remain supplemental diagnostics, not the headline decision surface.
 - Historical fees are used when available.
 - If historical fee fields are missing, the harness flags the gap and continues; it does not silently impute missing fees.
-- Partial fills and unfilled residuals must remain visible in completion-aware reporting rather than being treated as hidden improvements.
+- Partial fills and unfilled event-level remainders must remain visible in completion-aware reporting rather than being treated as hidden improvements.
 
 ## Locked first-pass 3B admissibility rule
 
@@ -62,6 +71,7 @@ These assumptions are frozen for RH-01. Extraction, normalization, and the first
 - Buy-side residuals may route to V2 only if realized slippage versus the reference price is less than or equal to `50 bps`.
 - Sell-side residuals may route to V2 only if realized slippage versus the reference price is less than or equal to `50 bps`.
 - If admissibility fails, or no qualifying residual quote is recoverable, the residual remains unfilled.
+- Under the event-level contract, residual means the remainder of the observed event-level replay unit, not a recovered multi-event user order.
 - This rule is an explicit study-owned first-pass proxy. It is not a claim about canonical product behavior and may be replaced later if a higher-fidelity historical admissibility recovery path is found.
 
 ## Config mirrors

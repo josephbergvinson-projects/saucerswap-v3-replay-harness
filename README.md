@@ -15,6 +15,7 @@ This repository is the standalone source tree for the replay study harness. It i
 
 - Primary execution document: `docs/planning/execution-plan.md`
 - Frozen planning source: `docs/planning/replay-study-plan-locked.md`
+- Replay contract amendment: `docs/methodology/replay-contract.md`
 - Phase 0 methodology lock: `docs/methodology/phase-0-lock.md`
 
 ## Project layout
@@ -47,13 +48,15 @@ python -m unittest discover -s tests
 
 This is a counterfactual historical replay harness, not a product-fidelity simulator for deployed SaucerSwap V3.
 
+The current first-pass contract is an **event-level replay benchmark** rather than a true order-level reconstruction. See `docs/methodology/replay-contract.md`.
+
 ## Build sequence summary
 
 This is the short version of the canonical build plan in `docs/planning/execution-plan.md`.
 
 1. Freeze Phase 0 assumptions in `docs/methodology/phase-0-lock.md` and `config/*.yaml`
 2. Extract HBAR/USDC V2 0.15% historical flow from Gigabrain
-3. Normalize raw flow into replay units
+3. Normalize raw flow into event-level replay units
 4. Build V2 baseline and shared metrics engine
 5. Add 3A pure-book lane
 6. Add 3B hybrid lane with study-owned admissibility rule

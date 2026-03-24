@@ -4,6 +4,8 @@ This document is the canonical project-level build plan for the SaucerSwap V3 re
 
 The locked Notion export in `docs/planning/replay-study-plan-locked.md` is the frozen planning source. If there is any ambiguity between planning language and implementation sequence, this file governs build order, deliverables, and acceptance checks.
 
+The live schema contract amendment in `docs/methodology/replay-contract.md` governs claim scope when the exposed historical source cannot support the original transaction-level assumptions.
+
 ## 1) Objective
 
 Build a reproducible offline Python harness for the HBAR/USDC replay study that produces four comparison surfaces:
@@ -17,6 +19,8 @@ Build a reproducible offline Python harness for the HBAR/USDC replay study that 
 
 - This is a counterfactual historical replay harness, not a product-fidelity simulator of deployed SaucerSwap V3.
 - 3A and 3B are study-owned comparison lanes.
+- The first-pass study contract is an **event-level replay benchmark**, not a true order-level reconstruction.
+- That contract amendment is driven by the RH-02 live Gigabrain scan in `docs/methodology/replay-contract.md`, which found no transaction-hash, consensus-timestamp, log-index, or equivalent per-transaction ordering field in the exposed V2 swap/trade/pool surfaces.
 - 3B uses a study-owned admissibility rule that is explicit, configurable, and replaceable later if a higher-fidelity recovery path becomes available.
 
 ## 3) Done criteria
@@ -24,7 +28,7 @@ Build a reproducible offline Python harness for the HBAR/USDC replay study that 
 The first-pass harness is complete when the repository can reproducibly:
 
 1. extract historical HBAR/USDC V2 0.15% source data from Gigabrain
-2. normalize that source data into replay-ready events and replay units
+2. normalize that source data into replay-ready event rows and event-level replay units
 3. compute the realized V2 baseline
 4. ingest the Lambdaplex benchmark panel
 5. run 3A pure-book simulation
@@ -61,7 +65,7 @@ Purpose:
 
 Tasks:
 - freeze study window and timezone
-- freeze replay-unit definition and transaction-collapse rule
+- freeze replay-unit definition and no-collapse-without-provenance rule
 - freeze reference-price convention and fallback
 - freeze requested-notional buckets
 - freeze fee treatment in outputs
@@ -98,12 +102,12 @@ Acceptance:
 ### Phase 2 — normalize into replay-ready datasets
 
 Purpose:
-- convert raw extracts into deterministic replay-ready tables
+- convert raw extracts into deterministic event-level replay-ready tables
 
 Tasks:
-- normalize event rows
+- normalize observed event rows
 - infer side and requested notional consistently
-- build replay-unit table from the frozen collapse rule
+- build replay-unit table with one observed trade row per unit unless stronger provenance is recovered later
 - persist normalized outputs under `data/interim/`
 
 Artifacts:
@@ -220,9 +224,10 @@ Each lane should emit one record per replay unit with at least:
 
 - lane
 - replay_unit_id
+- source_trade_row_id
+- source_swap_event_id
 - timestamp
-- tx_id
-- event_index
+- source_ordering_key
 - side
 - requested_size
 - requested_notional
@@ -251,12 +256,13 @@ Higher-fidelity checks are welcome later, but they are not prerequisites for shi
 ## 9) Risks to manage
 
 ### Replay-unit ambiguity
-If multi-event transactions are collapsed badly, the synthetic book lanes can be overstated.
+Because the exposed V2 swap surfaces do not publish transaction-boundary provenance, replay units can be overstated if rows are collapsed aggressively.
 
 Mitigation:
-- keep tx id + event ordering fields
-- freeze the collapse rule early
-- sample-check collapsed transactions
+- lock the first-pass contract to an event-level benchmark
+- default to one observed trade row per replay unit
+- preserve the ordering fields that do exist (`tradeTimestampSeconds`, `swapEventId`, `tradeRowId`)
+- only introduce cross-row collapse after stronger provenance is recovered
 
 ### First-pass 3B admissibility proxy interpretation
 If the rule is vague or silently shifts, 3B becomes hard to interpret.
