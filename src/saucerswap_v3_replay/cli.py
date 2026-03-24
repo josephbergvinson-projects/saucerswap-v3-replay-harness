@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
+from .extract.gigabrain import build_extract_manifest, write_extract_manifest
 from .settings import load_study_settings
 
 
@@ -26,6 +27,16 @@ def cmd_layout(_: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_probe_gigabrain(args: argparse.Namespace) -> int:
+    root = Path(args.root).resolve()
+    manifest = build_extract_manifest(root)
+    if args.write_manifest:
+        out_path = write_extract_manifest(root)
+        manifest['manifest_path'] = str(out_path.relative_to(root))
+    print(json.dumps(manifest, indent=2))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog='saucerswap-v3-replay')
     sub = parser.add_subparsers(dest='command', required=True)
@@ -35,6 +46,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     layout = sub.add_parser('layout', help='Print project layout summary')
     layout.set_defaults(func=cmd_layout)
+
+    probe = sub.add_parser('probe-gigabrain', help='Probe Gigabrain access readiness and write extract manifest')
+    probe.add_argument('--root', default='.', help='Repo/worktree root to inspect')
+    probe.add_argument('--no-write-manifest', dest='write_manifest', action='store_false')
+    probe.set_defaults(func=cmd_probe_gigabrain, write_manifest=True)
     return parser
 
 
