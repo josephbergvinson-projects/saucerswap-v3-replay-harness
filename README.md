@@ -90,3 +90,7 @@ This materializes:
 - `data/interim/normalized_events.csv`
 - `data/interim/replay_units.csv`
 - `data/interim/normalization-manifest.json`
+
+Rerun safety:
+- normalization now writes staged artifacts under `data/interim/` and only replaces the published CSVs plus `normalization-manifest.json` after a full successful run and manifest build
+- interrupted or failed reruns therefore leave the previously published final artifacts intact

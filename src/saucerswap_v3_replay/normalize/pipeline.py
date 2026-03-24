@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import shutil
+import tempfile
 from typing import Any
 
 from ..validation.determinism import fingerprint_payload
@@ -57,6 +59,31 @@ class RawPaths:
     fee_inputs_path: Path
 
 
+@dataclass(frozen=True)
+class NormalizationArtifactPaths:
+    normalized_events_path: Path
+    replay_units_path: Path
+    manifest_path: Path
+
+
+@dataclass(frozen=True)
+class StagedNormalizationArtifacts:
+    published_paths: NormalizationArtifactPaths
+    staging_dir: Path
+
+    @property
+    def normalized_events_path(self) -> Path:
+        return self.staging_dir / self.published_paths.normalized_events_path.name
+
+    @property
+    def replay_units_path(self) -> Path:
+        return self.staging_dir / self.published_paths.replay_units_path.name
+
+    @property
+    def manifest_path(self) -> Path:
+        return self.staging_dir / self.published_paths.manifest_path.name
+
+
 class OrderViolationError(ValueError):
     pass
 
@@ -72,9 +99,12 @@ def run_normalization(root: str | Path) -> NormalizationResult:
 
     interim_dir = repo_root / 'data' / 'interim'
     interim_dir.mkdir(parents=True, exist_ok=True)
-    normalized_events_path = interim_dir / 'normalized_events.csv'
-    replay_units_path = interim_dir / 'replay_units.csv'
-    manifest_path = interim_dir / 'normalization-manifest.json'
+    output_paths = NormalizationArtifactPaths(
+        normalized_events_path=interim_dir / 'normalized_events.csv',
+        replay_units_path=interim_dir / 'replay_units.csv',
+        manifest_path=interim_dir / 'normalization-manifest.json',
+    )
+    staged_artifacts = _begin_staged_artifacts(output_paths)
 
     stats: dict[str, Any] = {
         'raw_trade_rows': 0,
@@ -101,80 +131,89 @@ def run_normalization(root: str | Path) -> NormalizationResult:
 
     previous_ordering_key: tuple[int, int, int] | None = None
 
-    with raw_paths.trades_path.open('r', encoding='utf-8', newline='') as trades_handle, normalized_events_path.open(
-        'w', encoding='utf-8', newline=''
-    ) as normalized_handle, replay_units_path.open('w', encoding='utf-8', newline='') as replay_handle:
-        trade_reader = csv.DictReader(trades_handle)
-        normalized_writer = csv.DictWriter(normalized_handle, fieldnames=NORMALIZED_EVENT_FIELDNAMES)
-        replay_writer = csv.DictWriter(replay_handle, fieldnames=REPLAY_UNIT_FIELDNAMES)
-        normalized_writer.writeheader()
-        replay_writer.writeheader()
+    try:
+        with raw_paths.trades_path.open('r', encoding='utf-8', newline='') as trades_handle, staged_artifacts.normalized_events_path.open(
+            'w', encoding='utf-8', newline=''
+        ) as normalized_handle, staged_artifacts.replay_units_path.open(
+            'w', encoding='utf-8', newline=''
+        ) as replay_handle:
+            trade_reader = csv.DictReader(trades_handle)
+            normalized_writer = csv.DictWriter(normalized_handle, fieldnames=NORMALIZED_EVENT_FIELDNAMES)
+            replay_writer = csv.DictWriter(replay_handle, fieldnames=REPLAY_UNIT_FIELDNAMES)
+            normalized_writer.writeheader()
+            replay_writer.writeheader()
 
-        for row in trade_reader:
-            trade_timestamp_seconds = parse_timestamp_seconds(row['tradeTimestampSeconds'])
-            swap_event_id = str(parse_int(row['swapEventId']))
-            trade_row_id = parse_int(row['tradeRowId'])
-            ordering_key = (trade_timestamp_seconds, int(swap_event_id), trade_row_id)
-            if previous_ordering_key is not None and ordering_key < previous_ordering_key:
-                raise OrderViolationError(
-                    f'Non-deterministic ordering detected: {ordering_key} after {previous_ordering_key}'
+            for row in trade_reader:
+                trade_timestamp_seconds = parse_timestamp_seconds(row['tradeTimestampSeconds'])
+                swap_event_id = str(parse_int(row['swapEventId']))
+                trade_row_id = parse_int(row['tradeRowId'])
+                ordering_key = (trade_timestamp_seconds, int(swap_event_id), trade_row_id)
+                if previous_ordering_key is not None and ordering_key < previous_ordering_key:
+                    raise OrderViolationError(
+                        f'Non-deterministic ordering detected: {ordering_key} after {previous_ordering_key}'
+                    )
+                previous_ordering_key = ordering_key
+
+                price_match = reference_index.lookup(trade_timestamp_seconds)
+                swap_metadata_covered = swap_event_id in metadata_index.swap_ids
+                fee_covered = fee_day_start(trade_timestamp_seconds) in fee_index.covered_days
+
+                event = normalize_trade_row(
+                    row,
+                    reference_price=price_match.reference_price,
+                    reference_price_source=price_match.source,
+                    reference_price_fallback=price_match.fallback,
+                    swap_metadata_covered=swap_metadata_covered,
+                    fee_covered=fee_covered,
                 )
-            previous_ordering_key = ordering_key
+                replay_unit = event.to_replay_unit()
 
-            price_match = reference_index.lookup(trade_timestamp_seconds)
-            swap_metadata_covered = swap_event_id in metadata_index.swap_ids
-            fee_covered = fee_day_start(trade_timestamp_seconds) in fee_index.covered_days
+                normalized_writer.writerow(event.as_normalized_row())
+                replay_writer.writerow(event.as_replay_row())
 
-            event = normalize_trade_row(
-                row,
-                reference_price=price_match.reference_price,
-                reference_price_source=price_match.source,
-                reference_price_fallback=price_match.fallback,
-                swap_metadata_covered=swap_metadata_covered,
-                fee_covered=fee_covered,
-            )
-            replay_unit = event.to_replay_unit()
+                _update_stats(
+                    stats,
+                    row=row,
+                    event=event,
+                    price_source=price_match.source,
+                    price_fallback=price_match.fallback,
+                )
+                stats['raw_trade_rows'] += 1
+                stats['normalized_event_rows'] += 1
+                stats['replay_unit_rows'] += 1
+                stats['requested_size_raw_total'] += event.target_volume_raw
+                stats['requested_notional_raw_total'] += event.base_volume_raw
+                _ = replay_unit
 
-            normalized_writer.writerow(event.as_normalized_row())
-            replay_writer.writerow(event.as_replay_row())
-
-            _update_stats(
-                stats,
-                row=row,
-                event=event,
-                price_source=price_match.source,
-                price_fallback=price_match.fallback,
-            )
-            stats['raw_trade_rows'] += 1
-            stats['normalized_event_rows'] += 1
-            stats['replay_unit_rows'] += 1
-            stats['requested_size_raw_total'] += event.target_volume_raw
-            stats['requested_notional_raw_total'] += event.base_volume_raw
-            _ = replay_unit
-
-    manifest = build_normalization_manifest(
-        raw_paths=raw_paths,
-        normalized_events_path=normalized_events_path,
-        replay_units_path=replay_units_path,
-        metadata_index=metadata_index,
-        fee_index=fee_index,
-        reference_index=reference_index,
-        stats=stats,
-    )
-    manifest_path.write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
-    return NormalizationResult(
-        normalized_events_path=normalized_events_path,
-        replay_units_path=replay_units_path,
-        manifest_path=manifest_path,
-        manifest=manifest,
-    )
+        manifest = build_normalization_manifest(
+            raw_paths=raw_paths,
+            output_paths=output_paths,
+            normalized_events_bytes=staged_artifacts.normalized_events_path.stat().st_size,
+            replay_units_bytes=staged_artifacts.replay_units_path.stat().st_size,
+            metadata_index=metadata_index,
+            fee_index=fee_index,
+            reference_index=reference_index,
+            stats=stats,
+        )
+        staged_artifacts.manifest_path.write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
+        _publish_staged_artifacts(staged_artifacts)
+        return NormalizationResult(
+            normalized_events_path=output_paths.normalized_events_path,
+            replay_units_path=output_paths.replay_units_path,
+            manifest_path=output_paths.manifest_path,
+            manifest=manifest,
+        )
+    except Exception:
+        _cleanup_staged_artifacts(staged_artifacts)
+        raise
 
 
 def build_normalization_manifest(
     *,
     raw_paths: RawPaths,
-    normalized_events_path: Path,
-    replay_units_path: Path,
+    output_paths: NormalizationArtifactPaths,
+    normalized_events_bytes: int,
+    replay_units_bytes: int,
     metadata_index: MetadataIndex,
     fee_index: FeeCoverageIndex,
     reference_index: ReferencePriceIndex,
@@ -203,10 +242,10 @@ def build_normalization_manifest(
             'fee_input_unique_covered_days': fee_index.unique_day_count,
         },
         'outputs': {
-            'normalized_events_path': str(normalized_events_path),
-            'normalized_events_bytes': normalized_events_path.stat().st_size,
-            'replay_units_path': str(replay_units_path),
-            'replay_units_bytes': replay_units_path.stat().st_size,
+            'normalized_events_path': str(output_paths.normalized_events_path),
+            'normalized_events_bytes': normalized_events_bytes,
+            'replay_units_path': str(output_paths.replay_units_path),
+            'replay_units_bytes': replay_units_bytes,
         },
         'row_counts': {
             'raw_trade_rows': stats['raw_trade_rows'],
@@ -345,6 +384,27 @@ def _require_inputs(raw_paths: RawPaths) -> None:
     if missing:
         joined = ', '.join(str(path) for path in missing)
         raise FileNotFoundError(f'Missing normalization input files: {joined}')
+
+
+def _begin_staged_artifacts(output_paths: NormalizationArtifactPaths) -> StagedNormalizationArtifacts:
+    staging_dir = Path(
+        tempfile.mkdtemp(
+            prefix='.normalize-event-level-',
+            dir=output_paths.normalized_events_path.parent,
+        )
+    )
+    return StagedNormalizationArtifacts(published_paths=output_paths, staging_dir=staging_dir)
+
+
+def _publish_staged_artifacts(staged_artifacts: StagedNormalizationArtifacts) -> None:
+    staged_artifacts.normalized_events_path.replace(staged_artifacts.published_paths.normalized_events_path)
+    staged_artifacts.replay_units_path.replace(staged_artifacts.published_paths.replay_units_path)
+    staged_artifacts.manifest_path.replace(staged_artifacts.published_paths.manifest_path)
+    _cleanup_staged_artifacts(staged_artifacts)
+
+
+def _cleanup_staged_artifacts(staged_artifacts: StagedNormalizationArtifacts) -> None:
+    shutil.rmtree(staged_artifacts.staging_dir, ignore_errors=True)
 
 
 def _update_stats(

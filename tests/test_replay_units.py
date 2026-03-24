@@ -3,7 +3,9 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
+from saucerswap_v3_replay.normalize.events import normalize_trade_row as normalize_trade_row_impl
 from saucerswap_v3_replay.normalize.pipeline import run_normalization
 from saucerswap_v3_replay.normalize.replay_units import collapse_by_tx_side, materialize_replay_units
 from saucerswap_v3_replay.schema import ReplayUnit
@@ -93,112 +95,7 @@ class NormalizationPipelineTests(unittest.TestCase):
     def test_one_trade_row_maps_to_one_replay_unit(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
-            raw_dir = root / 'data' / 'raw' / 'gigabrain'
-            raw_dir.mkdir(parents=True)
-            (root / 'data' / 'interim').mkdir(parents=True)
-
-            self._write_csv(
-                raw_dir / 'hbar_usdc_v2_015_trades.csv',
-                [
-                    {
-                        'tradeRowId': '1',
-                        'swapEventId': '10',
-                        'poolContractId': '0.0.3964804',
-                        'tradeTimestampSeconds': '1,700,000,000',
-                        'baseId': 'USDC',
-                        'targetId': 'HBAR',
-                        'baseVolume': '1,000,000',
-                        'targetVolume': '20,000,000,000',
-                        'price': '20',
-                        'type': 'buy',
-                        'contractId': '0.0.3964804',
-                        'sender': 'a',
-                        'recipient': 'b',
-                        'amountA': '1,000,000',
-                        'amountB': '-20,000,000,000',
-                        'sqrtRatioX96': '1',
-                        'liquidity': '1',
-                        'tick': '1',
-                        'swapEventTimestampSeconds': '1,700,000,000.00',
-                        'swapSource': '',
-                    },
-                    {
-                        'tradeRowId': '2',
-                        'swapEventId': '11',
-                        'poolContractId': '0.0.3964804',
-                        'tradeTimestampSeconds': '1,700,000,060',
-                        'baseId': 'USDC',
-                        'targetId': 'HBAR',
-                        'baseVolume': '500,000',
-                        'targetVolume': '10,000,000,000',
-                        'price': '20',
-                        'type': '',
-                        'contractId': '0.0.3964804',
-                        'sender': 'a',
-                        'recipient': 'b',
-                        'amountA': '-500,000',
-                        'amountB': '10,000,000,000',
-                        'sqrtRatioX96': '1',
-                        'liquidity': '1',
-                        'tick': '1',
-                        'swapEventTimestampSeconds': '1,700,000,060.00',
-                        'swapSource': '',
-                    },
-                ],
-            )
-            self._write_csv(
-                raw_dir / 'hbar_usdc_v2_015_swap_metadata.csv',
-                [
-                    {
-                        'metadataRowId': '1',
-                        'swap_id': '10',
-                        'source': 'meta',
-                        'contractId': '0.0.3964804',
-                        'timestampSeconds': '1,700,000,000',
-                        'sender': 'a',
-                        'recipient': 'b',
-                        'amountA': '1,000,000',
-                        'amountB': '-20,000,000,000',
-                        'sqrtRatioX96': '1',
-                        'liquidity': '1',
-                        'tick': '1',
-                    },
-                ],
-            )
-            self._write_csv(
-                raw_dir / 'hbar_reference_prices.csv',
-                [
-                    {'id': '1', 'poolId': '9', 'timestampSeconds': '1,699,999,940', 'price': '20'},
-                    {'id': '2', 'poolId': '9', 'timestampSeconds': '1,700,000,060', 'price': '25'},
-                ],
-            )
-            self._write_csv(
-                raw_dir / 'v2_fee_inputs.csv',
-                [
-                    {
-                        'id': '1',
-                        'poolVersion': '2',
-                        'poolId': '9',
-                        'timestampSeconds': '1,699,977,600',
-                        'fee': '1',
-                        'feeUsd': '1',
-                        'feeSaucerswapUi': '',
-                        'feeSaucerswapUiUsd': '',
-                        'feeSaucerswapApp': '',
-                        'feeSaucerswapAppUsd': '',
-                        'feeHashpack': '',
-                        'feeHashpackUsd': '',
-                        'feeKabilia': '',
-                        'feeKabiliaUsd': '',
-                        'feeBlade': '',
-                        'feeBladeUsd': '',
-                        'feeEtaSwap': '',
-                        'feeEtaSwapUsd': '',
-                        'feeSaucerswapAppAndroid': '0',
-                        'feeSaucerswapAppAndroidUsd': '0',
-                    },
-                ],
-            )
+            self._write_pipeline_inputs(root)
 
             result = run_normalization(root)
 
@@ -211,6 +108,8 @@ class NormalizationPipelineTests(unittest.TestCase):
             self.assertEqual(manifest['row_counts']['raw_trade_rows'], 2)
             self.assertEqual(manifest['row_counts']['replay_unit_rows'], 2)
             self.assertTrue(manifest['reconciliation']['counts_match'])
+            self.assertEqual(manifest['outputs']['normalized_events_path'], str(result.normalized_events_path))
+            self.assertEqual(manifest['outputs']['replay_units_path'], str(result.replay_units_path))
             self.assertEqual(normalized_rows[0]['tradeRowId'], '1')
             self.assertEqual(normalized_rows[1]['tradeRowId'], '2')
             self.assertEqual(replay_rows[0]['tx_id'], '10')
@@ -220,6 +119,153 @@ class NormalizationPipelineTests(unittest.TestCase):
             self.assertEqual(normalized_rows[0]['swap_metadata_covered'], 'true')
             self.assertEqual(normalized_rows[1]['swap_metadata_covered'], 'false')
             self.assertEqual(normalized_rows[0]['fee_covered'], 'true')
+
+    def test_failure_during_rerun_preserves_existing_published_artifacts(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            interim_dir = self._write_pipeline_inputs(root)
+
+            normalized_path = interim_dir / 'normalized_events.csv'
+            replay_path = interim_dir / 'replay_units.csv'
+            manifest_path = interim_dir / 'normalization-manifest.json'
+
+            normalized_seed = 'tradeRowId\n999\n'
+            replay_seed = 'tx_id\nlegacy\n'
+            manifest_seed = json.dumps({'row_counts': {'raw_trade_rows': 999}}, indent=2) + '\n'
+            normalized_path.write_text(normalized_seed, encoding='utf-8')
+            replay_path.write_text(replay_seed, encoding='utf-8')
+            manifest_path.write_text(manifest_seed, encoding='utf-8')
+
+            call_count = 0
+
+            def fail_on_second_row(*args, **kwargs):
+                nonlocal call_count
+                call_count += 1
+                if call_count == 2:
+                    raise RuntimeError('simulated mid-run normalization failure')
+                return normalize_trade_row_impl(*args, **kwargs)
+
+            with mock.patch(
+                'saucerswap_v3_replay.normalize.pipeline.normalize_trade_row',
+                side_effect=fail_on_second_row,
+            ):
+                with self.assertRaisesRegex(RuntimeError, 'simulated mid-run normalization failure'):
+                    run_normalization(root)
+
+            self.assertEqual(normalized_path.read_text(encoding='utf-8'), normalized_seed)
+            self.assertEqual(replay_path.read_text(encoding='utf-8'), replay_seed)
+            self.assertEqual(manifest_path.read_text(encoding='utf-8'), manifest_seed)
+            self.assertEqual(list(interim_dir.glob('.normalize-event-level-*')), [])
+
+    def _write_pipeline_inputs(self, root: Path) -> Path:
+        raw_dir = root / 'data' / 'raw' / 'gigabrain'
+        raw_dir.mkdir(parents=True)
+        interim_dir = root / 'data' / 'interim'
+        interim_dir.mkdir(parents=True)
+
+        self._write_csv(
+            raw_dir / 'hbar_usdc_v2_015_trades.csv',
+            [
+                {
+                    'tradeRowId': '1',
+                    'swapEventId': '10',
+                    'poolContractId': '0.0.3964804',
+                    'tradeTimestampSeconds': '1,700,000,000',
+                    'baseId': 'USDC',
+                    'targetId': 'HBAR',
+                    'baseVolume': '1,000,000',
+                    'targetVolume': '20,000,000,000',
+                    'price': '20',
+                    'type': 'buy',
+                    'contractId': '0.0.3964804',
+                    'sender': 'a',
+                    'recipient': 'b',
+                    'amountA': '1,000,000',
+                    'amountB': '-20,000,000,000',
+                    'sqrtRatioX96': '1',
+                    'liquidity': '1',
+                    'tick': '1',
+                    'swapEventTimestampSeconds': '1,700,000,000.00',
+                    'swapSource': '',
+                },
+                {
+                    'tradeRowId': '2',
+                    'swapEventId': '11',
+                    'poolContractId': '0.0.3964804',
+                    'tradeTimestampSeconds': '1,700,000,060',
+                    'baseId': 'USDC',
+                    'targetId': 'HBAR',
+                    'baseVolume': '500,000',
+                    'targetVolume': '10,000,000,000',
+                    'price': '20',
+                    'type': '',
+                    'contractId': '0.0.3964804',
+                    'sender': 'a',
+                    'recipient': 'b',
+                    'amountA': '-500,000',
+                    'amountB': '10,000,000,000',
+                    'sqrtRatioX96': '1',
+                    'liquidity': '1',
+                    'tick': '1',
+                    'swapEventTimestampSeconds': '1,700,000,060.00',
+                    'swapSource': '',
+                },
+            ],
+        )
+        self._write_csv(
+            raw_dir / 'hbar_usdc_v2_015_swap_metadata.csv',
+            [
+                {
+                    'metadataRowId': '1',
+                    'swap_id': '10',
+                    'source': 'meta',
+                    'contractId': '0.0.3964804',
+                    'timestampSeconds': '1,700,000,000',
+                    'sender': 'a',
+                    'recipient': 'b',
+                    'amountA': '1,000,000',
+                    'amountB': '-20,000,000,000',
+                    'sqrtRatioX96': '1',
+                    'liquidity': '1',
+                    'tick': '1',
+                },
+            ],
+        )
+        self._write_csv(
+            raw_dir / 'hbar_reference_prices.csv',
+            [
+                {'id': '1', 'poolId': '9', 'timestampSeconds': '1,699,999,940', 'price': '20'},
+                {'id': '2', 'poolId': '9', 'timestampSeconds': '1,700,000,060', 'price': '25'},
+            ],
+        )
+        self._write_csv(
+            raw_dir / 'v2_fee_inputs.csv',
+            [
+                {
+                    'id': '1',
+                    'poolVersion': '2',
+                    'poolId': '9',
+                    'timestampSeconds': '1,699,977,600',
+                    'fee': '1',
+                    'feeUsd': '1',
+                    'feeSaucerswapUi': '',
+                    'feeSaucerswapUiUsd': '',
+                    'feeSaucerswapApp': '',
+                    'feeSaucerswapAppUsd': '',
+                    'feeHashpack': '',
+                    'feeHashpackUsd': '',
+                    'feeKabilia': '',
+                    'feeKabiliaUsd': '',
+                    'feeBlade': '',
+                    'feeBladeUsd': '',
+                    'feeEtaSwap': '',
+                    'feeEtaSwapUsd': '',
+                    'feeSaucerswapAppAndroid': '0',
+                    'feeSaucerswapAppAndroidUsd': '0',
+                },
+            ],
+        )
+        return interim_dir
 
     @staticmethod
     def _write_csv(path: Path, rows: list[dict[str, str]]) -> None:

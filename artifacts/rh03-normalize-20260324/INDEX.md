@@ -1,8 +1,9 @@
 # RH-03 Normalize Event Level Units — Artifact Index
 
 Date: 2026-03-24
-Branch: feat/ssv3-rh03-normalize-event-level-units
-Worktree: /Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness/.worktrees/feat-ssv3-rh03-normalize-event-level-units
+Repair rerun branch: feat/ssv3-rh03-artifact-repair-full-rerun
+Repair rerun worktree: /Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness/.worktrees/feat-ssv3-rh03-artifact-repair-full-rerun
+Original implementation branch: feat/ssv3-rh03-normalize-event-level-units
 
 ## Scope
 
@@ -25,24 +26,25 @@ Contract shipped:
 - `src/saucerswap_v3_replay/normalize/replay_units.py`
   - replaced collapse semantics with canonical event-level materialization and kept a compatibility shim
 - `src/saucerswap_v3_replay/normalize/pipeline.py`
-  - added streaming normalization pipeline that writes interim CSVs and a manifest
+  - added the streaming normalization pipeline and repaired the rerun publication path to stage outputs under `data/interim/` before atomically replacing the published CSVs plus manifest
 - `src/saucerswap_v3_replay/cli.py`
   - added `normalize-event-level`
 - `Makefile`
   - added `normalize-event-level` target
 - `README.md`
-  - documented the rerun command and interim outputs
+  - documented the rerun command, interim outputs, and staged/atomic rerun safety
 - `tests/test_normalize_events.py`
   - covers side inference, requested-notional semantics, and reference-price behavior
 - `tests/test_replay_units.py`
-  - covers deterministic ordering and one-trade-row-per-replay-unit pipeline behavior
+  - covers deterministic ordering, one-trade-row-per-replay-unit pipeline behavior, and the interrupted-rerun regression path
 
 ## Commands run
 
 - `make validate-config` — passed
 - `make compile` — passed
-- `make test` — passed (`Ran 24 tests`)
-- `PYTHONPATH=src python3 -m saucerswap_v3_replay.cli normalize-event-level --root .` — passed
+- `make test` — passed (`Ran 25 tests`)
+- `PYTHONPATH=src python3 -m saucerswap_v3_replay.cli normalize-event-level --root .` — passed (`real 256.67s`)
+- row-count verification against the raw/local interim CSVs — passed (`7,255,957` trades / normalized events / replay units)
 
 ## Materialized outputs
 
@@ -51,10 +53,10 @@ Generated locally under `data/interim/`:
 - `data/interim/replay_units.csv`
 - `data/interim/normalization-manifest.json`
 
-Observed file sizes from the final successful run:
+Observed file sizes from the repaired successful rerun:
 - `normalized_events.csv` — 1,777,871,695 bytes
 - `replay_units.csv` — 1,168,929,452 bytes
-- `normalization-manifest.json` — 3,099 bytes
+- `normalization-manifest.json` — 3,175 bytes
 
 ## Output summary
 
@@ -90,6 +92,10 @@ Determinism anchors:
 
 ## Notes
 
+- Prior bad RH-03 local artifact state observed in the RH-04 audit: `normalized_events.csv` had 5,451,773 parsed rows, `replay_units.csv` had 5,451,743 parsed rows, while the stale `normalization-manifest.json` still claimed 7,255,957 rows.
+- Root cause: reruns rewrote `data/interim/normalized_events.csv` and `data/interim/replay_units.csv` in place before rebuilding `normalization-manifest.json`. An interrupted rerun could therefore truncate the published CSVs while leaving an older manifest with stale row counts behind.
+- Repaired rerun path: `PYTHONPATH=src python3 -m saucerswap_v3_replay.cli normalize-event-level --root .` now stages all three normalization artifacts under `data/interim/` and only replaces the published final paths after a successful full run and manifest build. Raw Gigabrain CSVs remain untouched.
+- Repair outcome: the repaired rerun re-materialized `normalized_events.csv`, `replay_units.csv`, and `normalization-manifest.json` with full reconciliation to the 7,255,957-row raw trade extract.
 - Reference prices are normalized to USDC-per-HBAR by inverting the raw pool minute series.
 - Requested size is the HBAR-side size from `targetVolume`.
 - Requested notional is the USDC-side size from `baseVolume`.
