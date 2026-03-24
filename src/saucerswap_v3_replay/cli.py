@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
+from .baseline.v2_realized import run_v2_realized_baseline
 from .extract.gigabrain import build_extract_manifest, write_extract_manifest
 from .normalize.pipeline import run_normalization
 from .settings import load_study_settings
@@ -52,6 +53,21 @@ def cmd_normalize_event_level(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_v2_baseline(args: argparse.Namespace) -> int:
+    root = Path(args.root).resolve()
+    result = run_v2_realized_baseline(root)
+    payload = {
+        'lane_output_path': str(result.lane_output_path.relative_to(root)),
+        'summary_path': str(result.summary_path.relative_to(root)),
+        'manifest_path': str(result.manifest_path.relative_to(root)),
+        'row_counts': result.summary['row_counts'],
+        'fees': result.summary['fees'],
+        'reconciliation': result.summary['reconciliation'],
+    }
+    print(json.dumps(payload, indent=2))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog='saucerswap-v3-replay')
     sub = parser.add_subparsers(dest='command', required=True)
@@ -70,6 +86,10 @@ def build_parser() -> argparse.ArgumentParser:
     normalize = sub.add_parser('normalize-event-level', help='Normalize raw gigabrain CSVs into event-level replay units')
     normalize.add_argument('--root', default='.', help='Repo/worktree root to normalize from')
     normalize.set_defaults(func=cmd_normalize_event_level)
+
+    baseline = sub.add_parser('v2-baseline', help='Build the realized V2 baseline lane from normalized event-level replay units')
+    baseline.add_argument('--root', default='.', help='Repo/worktree root to build from')
+    baseline.set_defaults(func=cmd_v2_baseline)
     return parser
 
 
