@@ -1,6 +1,6 @@
 {
-  "status": "blocked_missing_access",
-  "generated_at_utc": "2026-03-24T17:04:29Z",
+  "status": "materialized_local_csv_exports",
+  "generated_at_utc": "2026-03-24T17:14:00Z",
   "study": {
     "name": "saucerswap-v3-replay-harness",
     "market": "HBAR/USDC",
@@ -10,12 +10,11 @@
     "source_pool_address": "0.0.3964804",
     "timezone": "UTC",
     "reference_price_mode": "event_time_pre_trade",
+    "replay_contract": "event_level_benchmark",
     "replay_unit_mode": "one_trade_row_per_replay_unit",
     "baseline_lane": "v2_realized"
   },
   "access_probe": {
-    "env_files_loaded": [],
-    "candidate_env_files_present": [],
     "mysql": {
       "kind": "mysql",
       "ready": false,
@@ -27,27 +26,29 @@
         "GIGABRAIN_MYSQL_PASSWORD"
       ]
     },
-    "metabase": {
-      "kind": "metabase",
+    "metabase_api": {
+      "kind": "metabase_api",
       "ready": false,
       "missing_keys": [
         "METABASE_URL",
-        "METABASE_API_KEY",
-        "METABASE_CARD_ID_TRADES",
-        "METABASE_CARD_ID_SWAP_METADATA",
-        "METABASE_CARD_ID_PRICES"
+        "METABASE_API_KEY"
       ]
+    },
+    "chrome_session_cookie_bridge": {
+      "kind": "host_chrome_session_cookie_bridge",
+      "ready": true,
+      "notes": "`make export-metabase` uses the signed-in local Chrome Metabase session on the host plus Chrome Safe Storage access on the host to export CSVs directly from `/api/dataset/csv`."
     }
   },
   "queries": [
     {
       "name": "trades",
       "sql_path": "sql/extract_hbar_usdc_v2_015_trades.sql",
-      "output_path": "data/raw/gigabrain/hbar_usdc_v2_015_trades.parquet",
-      "extract_status": "not_run_missing_access",
-      "row_count": null,
-      "min_timestamp": null,
-      "max_timestamp": null,
+      "output_path": "data/raw/gigabrain/hbar_usdc_v2_015_trades.csv",
+      "extract_status": "materialized_local_csv",
+      "row_count": 7255957,
+      "min_timestamp": 1700264033,
+      "max_timestamp": 1774363967,
       "field_inventory": {
         "source": "sql_template",
         "fields": [
@@ -73,17 +74,24 @@
           "swapSource"
         ],
         "known": true,
-        "notes": "Projected fields inferred from the SQL template."
+        "notes": "Materialized from the live-aligned SQL template through chunked monthly Metabase CSV export."
+      },
+      "materialization": {
+        "path": "data/raw/gigabrain/hbar_usdc_v2_015_trades.csv",
+        "bytes": 2089806385,
+        "lines": 7255958,
+        "rows": 7255957,
+        "sha256": "6a7fd658255ee82b098db67e5c7d8387aa618b13795297c56be8921a5d302c3a"
       }
     },
     {
       "name": "swap_metadata",
       "sql_path": "sql/extract_hbar_usdc_v2_015_swap_metadata.sql",
-      "output_path": "data/raw/gigabrain/hbar_usdc_v2_015_swap_metadata.parquet",
-      "extract_status": "not_run_missing_access",
-      "row_count": null,
-      "min_timestamp": null,
-      "max_timestamp": null,
+      "output_path": "data/raw/gigabrain/hbar_usdc_v2_015_swap_metadata.csv",
+      "extract_status": "materialized_local_csv",
+      "row_count": 103740,
+      "min_timestamp": 1703990622.250907,
+      "max_timestamp": 1774309861.152549,
       "field_inventory": {
         "source": "sql_template",
         "fields": [
@@ -101,17 +109,24 @@
           "tick"
         ],
         "known": true,
-        "notes": "Projected fields inferred from the SQL template."
+        "notes": "Materialized from the live-aligned SQL template through direct Metabase CSV export."
+      },
+      "materialization": {
+        "path": "data/raw/gigabrain/hbar_usdc_v2_015_swap_metadata.csv",
+        "bytes": 23988360,
+        "lines": 103741,
+        "rows": 103740,
+        "sha256": "dc656badafc0187aa2895e0c53dd07608dad1add459d640cc0f3444ba09c7d63"
       }
     },
     {
       "name": "reference_prices",
       "sql_path": "sql/extract_hbar_reference_prices.sql",
-      "output_path": "data/raw/gigabrain/hbar_reference_prices.parquet",
-      "extract_status": "not_run_missing_access",
-      "row_count": null,
-      "min_timestamp": null,
-      "max_timestamp": null,
+      "output_path": "data/raw/gigabrain/hbar_reference_prices.csv",
+      "extract_status": "materialized_local_csv",
+      "row_count": 1233661,
+      "min_timestamp": 1700239200,
+      "max_timestamp": 1774363860,
       "field_inventory": {
         "source": "sql_template",
         "fields": [
@@ -121,17 +136,24 @@
           "price"
         ],
         "known": true,
-        "notes": "Projected fields inferred from the SQL template."
+        "notes": "Materialized from the live-aligned SQL template through chunked monthly Metabase CSV export."
+      },
+      "materialization": {
+        "path": "data/raw/gigabrain/hbar_reference_prices.csv",
+        "bytes": 44223438,
+        "lines": 1233662,
+        "rows": 1233661,
+        "sha256": "07ae95445f0247643d7151f2ca81266a3f9d1ac471cc89a2789038d292bf7df1"
       }
     },
     {
       "name": "fee_inputs",
       "sql_path": "sql/extract_v2_fee_inputs.sql",
-      "output_path": "data/raw/gigabrain/v2_fee_inputs.parquet",
-      "extract_status": "not_run_missing_access",
-      "row_count": null,
-      "min_timestamp": null,
-      "max_timestamp": null,
+      "output_path": "data/raw/gigabrain/v2_fee_inputs.csv",
+      "extract_status": "materialized_local_csv",
+      "row_count": 510,
+      "min_timestamp": 1751414400,
+      "max_timestamp": 1774310400,
       "field_inventory": {
         "source": "sql_template",
         "fields": [
@@ -157,25 +179,37 @@
           "feeSaucerswapAppAndroidUsd"
         ],
         "known": true,
-        "notes": "Projected fields inferred from the SQL template."
+        "notes": "Materialized from the live-aligned SQL template through direct Metabase CSV export."
+      },
+      "materialization": {
+        "path": "data/raw/gigabrain/v2_fee_inputs.csv",
+        "bytes": 53583,
+        "lines": 511,
+        "rows": 510,
+        "sha256": "c967a5b6eb5a703d0b7bbec74ab4f87175a0a79254d1bc44e3bbec79f27230fc"
       }
     }
   ],
   "realized_window": {
-    "min_timestamp": null,
-    "max_timestamp": null,
+    "min_timestamp": 1700264033,
+    "max_timestamp": 1774363967,
     "timezone": "UTC",
-    "notes": "Unknown until a live extract succeeds."
+    "notes": "Realized study window is anchored to the materialized trade extract for pool contract 0.0.3964804."
   },
   "blocker_notes": [
-    "No discoverable Gigabrain MySQL or Metabase credential set was found in the process environment or repo-local .env candidates; live read-only extract was therefore not runnable from this worktree."
+    "No direct MySQL credential route has been configured for the harness yet.",
+    "No standalone Metabase API key route has been configured for the harness yet.",
+    "The current reproducible extraction path depends on a signed-in local Chrome Metabase session on the host.",
+    "The study contract remains event-level because no transaction-hash / per-transaction ordering surface was found in the relevant V2 swap/trade/pool tables."
   ],
   "normalization_readiness": {
-    "can_start": false,
-    "decision": "RH-03 cannot begin immediately; extraction access and field verification must be completed first.",
-    "missing_requirements": [
-      "live historical extract access is not configured",
-      "raw trades extract is not materialized locally"
-    ]
+    "can_start": true,
+    "decision": "RH-03 may begin. Raw local trade, swap metadata, reference price, and fee input extracts are now materialized and checksummed.",
+    "missing_requirements": []
+  },
+  "materialization_run": {
+    "command": "make export-metabase",
+    "run_summary_path": "runs/rh02b-metabase-export-20260324/export-summary.json",
+    "supporting_observation_path": "data/raw/gigabrain/metabase-live-observations.json"
   }
 }
