@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from .extract.gigabrain import build_extract_manifest, write_extract_manifest
+from .normalize.pipeline import run_normalization
 from .settings import load_study_settings
 
 
@@ -37,6 +38,20 @@ def cmd_probe_gigabrain(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_normalize_event_level(args: argparse.Namespace) -> int:
+    root = Path(args.root).resolve()
+    result = run_normalization(root)
+    payload = {
+        'normalized_events_path': str(result.normalized_events_path.relative_to(root)),
+        'replay_units_path': str(result.replay_units_path.relative_to(root)),
+        'manifest_path': str(result.manifest_path.relative_to(root)),
+        'row_counts': result.manifest['row_counts'],
+        'coverage': result.manifest['coverage'],
+    }
+    print(json.dumps(payload, indent=2))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog='saucerswap-v3-replay')
     sub = parser.add_subparsers(dest='command', required=True)
@@ -51,6 +66,10 @@ def build_parser() -> argparse.ArgumentParser:
     probe.add_argument('--root', default='.', help='Repo/worktree root to inspect')
     probe.add_argument('--no-write-manifest', dest='write_manifest', action='store_false')
     probe.set_defaults(func=cmd_probe_gigabrain, write_manifest=True)
+
+    normalize = sub.add_parser('normalize-event-level', help='Normalize raw gigabrain CSVs into event-level replay units')
+    normalize.add_argument('--root', default='.', help='Repo/worktree root to normalize from')
+    normalize.set_defaults(func=cmd_normalize_event_level)
     return parser
 
 

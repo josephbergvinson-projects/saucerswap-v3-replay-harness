@@ -76,3 +76,17 @@ Notes:
 - macOS may prompt once for access to `Chrome Safe Storage`
 - outputs land under `data/raw/gigabrain/`
 - chunk metadata and checksummed export summaries land under `runs/rh02b-metabase-export-20260324/`
+
+## Event-level normalization rerun
+
+Once the raw CSVs are present under `data/raw/gigabrain/`, build the replay-ready interim layer with:
+
+```bash
+cd /Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness
+PYTHONPATH=src python3 -m saucerswap_v3_replay.cli normalize-event-level --root .
+```
+
+This materializes:
+- `data/interim/normalized_events.csv`
+- `data/interim/replay_units.csv`
+- `data/interim/normalization-manifest.json`

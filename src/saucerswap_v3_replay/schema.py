@@ -15,6 +15,13 @@ class ReplayUnit:
     requested_notional: float
     reference_price: float
     metadata: dict[str, Any] = field(default_factory=dict)
+    trade_row_id: int | None = None
+    swap_event_id: str | None = None
+    trade_timestamp_seconds: int | None = None
+    reference_price_source: str | None = None
+    reference_price_fallback: bool = False
+    swap_metadata_covered: bool = False
+    fee_covered: bool = False
 
 
 @dataclass(frozen=True)
