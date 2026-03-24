@@ -126,3 +126,19 @@ This materializes:
 - `data/processed/pure_book_manifest.json`
 
 The 3A path reuses the existing RH-03 replay inputs, loads the study-owned replenishing ladder from `config/lambdaplex_book.yaml`, emits one pure-book execution record per replay unit, and preserves `replay_unit_id`, `tradeRowId`, `swapEventId`, `tradeTimestampSeconds`, and `source_ordering_key` for reconciliation.
+
+## 3B hybrid rerun
+
+Once the mounted RH-04 baseline and RH-05 pure-book artifacts exist under `data/processed/`, build the 3B hybrid lane with:
+
+```bash
+cd /Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness
+make hybrid
+```
+
+This materializes:
+- `data/processed/lane_3b_hybrid.csv`
+- `data/processed/hybrid_summary.json`
+- `data/processed/hybrid_manifest.json`
+
+The 3B path treats `data/processed/lane_3a_pure_book.csv` and `data/processed/lane_v2_baseline.csv` as mounted read-only inputs, preserves one replay unit to one hybrid execution record, and only routes the RH-05 residual remainder to the V2 backstop when the frozen rule in `config/hybrid_rule.yaml` passes. If a residual cannot route, `completion_ratio` and `remainder_size` stay completion-aware rather than forcing a full fill.

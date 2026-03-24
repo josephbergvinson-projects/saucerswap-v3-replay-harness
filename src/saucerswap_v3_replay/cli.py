@@ -8,6 +8,7 @@ from .baseline.v2_realized import run_v2_realized_baseline
 from .extract.gigabrain import build_extract_manifest, write_extract_manifest
 from .normalize.pipeline import run_normalization
 from .settings import load_study_settings
+from .sim.hybrid import run_hybrid_lane
 from .sim.pure_book import run_pure_book_lane
 
 
@@ -86,6 +87,25 @@ def cmd_pure_book(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_hybrid(args: argparse.Namespace) -> int:
+    root = Path(args.root).resolve()
+    result = run_hybrid_lane(root)
+    payload = {
+        'lane_output_path': str(result.lane_output_path.relative_to(root)),
+        'summary_path': str(result.summary_path.relative_to(root)),
+        'manifest_path': str(result.manifest_path.relative_to(root)),
+        'row_counts': result.summary['row_counts'],
+        'completion': result.summary['completion'],
+        'admissibility': result.summary['admissibility'],
+        'route_breakdown': result.summary['route_breakdown'],
+        'slippage_bps': result.summary['slippage_bps'],
+        'fees': result.summary['fees'],
+        'reconciliation': result.summary['reconciliation'],
+    }
+    print(json.dumps(payload, indent=2))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog='saucerswap-v3-replay')
     sub = parser.add_subparsers(dest='command', required=True)
@@ -112,6 +132,13 @@ def build_parser() -> argparse.ArgumentParser:
     pure_book = sub.add_parser('pure-book', help='Build the 3A pure-book lane from normalized event-level replay units')
     pure_book.add_argument('--root', default='.', help='Repo/worktree root to build from')
     pure_book.set_defaults(func=cmd_pure_book)
+
+    hybrid = sub.add_parser(
+        'hybrid',
+        help='Build the 3B hybrid lane from mounted 3A pure-book and RH-04 V2 baseline artifacts',
+    )
+    hybrid.add_argument('--root', default='.', help='Repo/worktree root to build from')
+    hybrid.set_defaults(func=cmd_hybrid)
     return parser
 
 
