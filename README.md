@@ -163,7 +163,7 @@ This materializes:
 - `reports/reconciliation.md`
 - `reports/validation.md`
 
-The reporting path is read-only with respect to the mounted RH-03 through RH-06 artifacts. If the Lambdaplex published panel is still placeholder or incomplete, the pack discloses that state explicitly and does not fabricate benchmark metrics.
+The reporting path is read-only with respect to the mounted RH-03 through RH-06 artifacts. The local Lambdaplex benchmark contract lives in `benchmarks/lambdaplex/published-results.json` with provenance and mapping notes in `benchmarks/lambdaplex/source-notes.md`. If that contract is still `placeholder` or `incomplete`, the pack discloses that state explicitly and does not fabricate benchmark metrics.
 
 ## Validation-polish rerun
 

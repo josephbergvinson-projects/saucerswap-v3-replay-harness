@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import csv
 import json
 from pathlib import Path
@@ -150,7 +152,41 @@ class ReportingPackTests(unittest.TestCase):
                 ['pass', 'pass', 'pass'],
             )
 
-    def _write_reporting_fixture(self, root: Path) -> None:
+    def test_reporting_pack_merges_comparable_benchmark_metrics_when_present(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            self._write_reporting_fixture(root, benchmark_payload=self._benchmark_payload(comparable=True))
+
+            result = run_reporting_pack(root)
+
+            aggregate_rows = self._read_csv(result.comparison_aggregate_path)
+            benchmark_row = next(row for row in aggregate_rows if row['lane'] == 'lambdaplex_published')
+            self.assertEqual(benchmark_row['benchmark_comparable'], 'true')
+            self.assertEqual(benchmark_row['fill_rate'], '0.975')
+            self.assertEqual(benchmark_row['avg_completion_ratio'], '0.982')
+            self.assertEqual(benchmark_row['avg_slippage_bps'], '6.2')
+            self.assertEqual(benchmark_row['remainder_size_hbar'], '1250.5')
+            self.assertEqual(benchmark_row['source_notes_path'], 'benchmarks/lambdaplex/source-notes.md')
+            self.assertIn('published_metrics_captured', benchmark_row['benchmark_provenance'])
+
+            final_report = result.final_comparison_path.read_text(encoding='utf-8')
+            self.assertIn('| Lambdaplex published panel | 42 | 0.975 | 0.982 | 6.2 | 1250.5 |', final_report)
+            self.assertIn('benchmarks/lambdaplex/source-notes.md', final_report)
+
+            summary = json.loads(result.summary_path.read_text(encoding='utf-8'))
+            manifest = json.loads(result.manifest_path.read_text(encoding='utf-8'))
+            self.assertTrue(summary['benchmark']['comparable'])
+            self.assertEqual(summary['benchmark']['source_notes_path'], 'benchmarks/lambdaplex/source-notes.md')
+            self.assertEqual(
+                summary['benchmark']['provenance']['local_payload_state'],
+                'published_metrics_captured',
+            )
+            self.assertEqual(
+                manifest['benchmark']['comparable_headline_metrics']['row_count'],
+                42,
+            )
+
+    def _write_reporting_fixture(self, root: Path, *, benchmark_payload: dict[str, object] | None = None) -> None:
         processed_dir = root / 'data' / 'processed'
         config_dir = root / 'config'
         benchmark_dir = root / 'benchmarks' / 'lambdaplex'
@@ -189,19 +225,9 @@ class ReportingPackTests(unittest.TestCase):
             ),
             encoding='utf-8',
         )
-        (benchmark_dir / 'published-results.json').write_text(
-            json.dumps(
-                {
-                    'source': 'Lambdaplex published benchmark panel',
-                    'market': 'HBAR/USDC',
-                    'status': 'placeholder',
-                    'headline_metrics': {},
-                    'notes': 'Populate from published Lambdaplex outputs before final comparison runs.',
-                },
-                indent=2,
-            )
-            + '\n',
-            encoding='utf-8',
+        self._write_benchmark_contract(
+            benchmark_dir,
+            benchmark_payload or self._benchmark_payload(),
         )
 
         baseline_rows = [
@@ -542,6 +568,79 @@ class ReportingPackTests(unittest.TestCase):
             },
             'mapping': mapping,
             'reconciliation': reconciliation,
+        }
+
+    @staticmethod
+    def _write_benchmark_contract(benchmark_dir: Path, payload: dict[str, object]) -> None:
+        (benchmark_dir / 'source-notes.md').write_text(
+            '# Source notes\n\nTracked local benchmark contract for RH-09.\n',
+            encoding='utf-8',
+        )
+        (benchmark_dir / 'published-results.json').write_text(
+            json.dumps(payload, indent=2) + '\n',
+            encoding='utf-8',
+        )
+
+    @staticmethod
+    def _benchmark_payload(*, comparable: bool = False) -> dict[str, object]:
+        if comparable:
+            return {
+                'schema_version': 'rh09_lambdaplex_published_panel_v1',
+                'source': 'Lambdaplex published benchmark panel',
+                'market': 'HBAR/USDC',
+                'status': 'comparable',
+                'source_notes_path': 'benchmarks/lambdaplex/source-notes.md',
+                'headline_metrics': {
+                    'panel_fill_rate_pct': '97.5%',
+                    'panel_avg_slippage_bps': '6.2',
+                },
+                'comparable_headline_metrics': {
+                    'row_count': 42,
+                    'fill_rate': 0.975,
+                    'avg_completion_ratio': 0.982,
+                    'avg_slippage_bps': 6.2,
+                    'avg_abs_slippage_bps': 6.2,
+                    'remainder_size_hbar': 1250.5,
+                },
+                'provenance': {
+                    'local_payload_state': 'published_metrics_captured',
+                    'local_payload_complete': True,
+                    'blocking_reason': '',
+                    'captured_artifacts': [
+                        'benchmarks/lambdaplex/published-results.json',
+                        'benchmarks/lambdaplex/source-notes.md',
+                    ],
+                    'mapping_notes': [
+                        'Comparable metrics mapped into the reporting aggregate row.',
+                    ],
+                },
+                'notes': [
+                    'External published panel; values are not replay-generated.',
+                ],
+            }
+        return {
+            'schema_version': 'rh09_lambdaplex_published_panel_v1',
+            'source': 'Lambdaplex published benchmark panel',
+            'market': 'HBAR/USDC',
+            'status': 'placeholder',
+            'source_notes_path': 'benchmarks/lambdaplex/source-notes.md',
+            'headline_metrics': {},
+            'comparable_headline_metrics': {},
+            'provenance': {
+                'local_payload_state': 'placeholder_only',
+                'local_payload_complete': False,
+                'blocking_reason': 'Comparable Lambdaplex headline metrics are not recorded locally yet.',
+                'captured_artifacts': [
+                    'benchmarks/lambdaplex/published-results.json',
+                    'benchmarks/lambdaplex/source-notes.md',
+                ],
+                'mapping_notes': [
+                    'Only comparable_headline_metrics are merged into reporting outputs.',
+                ],
+            },
+            'notes': [
+                'Populate from published Lambdaplex outputs before final comparison runs.',
+            ],
         }
 
     @staticmethod

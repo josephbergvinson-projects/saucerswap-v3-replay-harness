@@ -188,14 +188,35 @@ class ValidationPolishPipelineTests(unittest.TestCase):
         fixture_dir.mkdir(parents=True, exist_ok=True)
 
         (config_dir / 'buckets.yaml').write_text(Path('config/buckets.yaml').read_text(encoding='utf-8'), encoding='utf-8')
+        (benchmark_dir / 'source-notes.md').write_text(
+            '# Source notes\n\nTracked local benchmark contract for RH-09.\n',
+            encoding='utf-8',
+        )
         (benchmark_dir / 'published-results.json').write_text(
             json.dumps(
                 {
+                    'schema_version': 'rh09_lambdaplex_published_panel_v1',
                     'source': 'Lambdaplex published benchmark panel',
                     'market': 'HBAR/USDC',
                     'status': 'placeholder',
+                    'source_notes_path': 'benchmarks/lambdaplex/source-notes.md',
                     'headline_metrics': {},
-                    'notes': 'Populate from published Lambdaplex outputs before final comparison runs.',
+                    'comparable_headline_metrics': {},
+                    'provenance': {
+                        'local_payload_state': 'placeholder_only',
+                        'local_payload_complete': False,
+                        'blocking_reason': 'Comparable Lambdaplex headline metrics are not recorded locally yet.',
+                        'captured_artifacts': [
+                            'benchmarks/lambdaplex/published-results.json',
+                            'benchmarks/lambdaplex/source-notes.md',
+                        ],
+                        'mapping_notes': [
+                            'Only comparable_headline_metrics are merged into reporting outputs.',
+                        ],
+                    },
+                    'notes': [
+                        'Populate from published Lambdaplex outputs before final comparison runs.',
+                    ],
                 },
                 indent=2,
             )

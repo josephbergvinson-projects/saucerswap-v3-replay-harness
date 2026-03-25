@@ -32,7 +32,10 @@ AGGREGATE_FIELDNAMES = [
     'admissibility_fail_rows',
     'admissibility_unknown_rows',
     'fee_precision',
+    'benchmark_comparable',
+    'source_notes_path',
     'published_headline_metrics',
+    'benchmark_provenance',
     'notes',
 ]
 
@@ -125,7 +128,10 @@ def build_rollup_row(
         'data_status': 'materialized',
         **rollup_metrics(rollup),
         'fee_precision': fee_precision,
+        'benchmark_comparable': '',
+        'source_notes_path': '',
         'published_headline_metrics': '',
+        'benchmark_provenance': '',
         'notes': notes,
     }
 
@@ -136,39 +142,75 @@ def build_benchmark_row(benchmark_status: PublishedBenchmarkStatus) -> dict[str,
         headline_metrics = json.dumps(benchmark_status.headline_metrics, sort_keys=True)
 
     note_parts = []
-    if not benchmark_status.comparable:
+    if benchmark_status.comparable:
+        note_parts.append('External published benchmark panel; comparable headline metrics merged from the local benchmark payload.')
+    else:
         note_parts.append('Published panel is placeholder or incomplete; no comparable benchmark metrics were merged.')
-    if benchmark_status.notes:
-        note_parts.append(benchmark_status.notes)
+    if benchmark_status.notes_summary:
+        note_parts.append(benchmark_status.notes_summary)
 
-    return {
+    row = {
         'lane': 'lambdaplex_published',
         'lane_label': 'Lambdaplex published panel',
         'data_status': benchmark_status.status,
-        'row_count': '',
-        'requested_size_hbar': '',
-        'requested_notional_usdc': '',
-        'filled_size_hbar': '',
-        'filled_notional_usdc': '',
-        'remainder_size_hbar': '',
-        'fill_rate': '',
-        'avg_completion_ratio': '',
-        'avg_slippage_bps': '',
-        'avg_abs_slippage_bps': '',
-        'finite_slippage_rows': '',
-        'non_finite_slippage_rows': '',
-        'full_fill_rows': '',
-        'partial_fill_rows': '',
-        'zero_fill_rows': '',
-        'fee_covered_rows': '',
-        'fee_missing_rows': '',
-        'admissibility_pass_rows': '',
-        'admissibility_fail_rows': '',
-        'admissibility_unknown_rows': '',
+        **build_benchmark_metric_text(
+            benchmark_status.comparable_headline_metrics if benchmark_status.comparable else {}
+        ),
         'fee_precision': '',
+        'benchmark_comparable': 'true' if benchmark_status.comparable else 'false',
+        'source_notes_path': benchmark_status.source_notes_path,
         'published_headline_metrics': headline_metrics,
+        'benchmark_provenance': benchmark_status.provenance.summary,
         'notes': ' '.join(note_parts).strip(),
     }
+    return row
+
+
+def build_benchmark_metric_text(metrics: dict[str, int | float]) -> dict[str, str]:
+    row = {field: '' for field in rollup_metrics_fieldnames()}
+    for field, value in metrics.items():
+        if field in {
+            'row_count',
+            'finite_slippage_rows',
+            'non_finite_slippage_rows',
+            'full_fill_rows',
+            'partial_fill_rows',
+            'zero_fill_rows',
+            'fee_covered_rows',
+            'fee_missing_rows',
+            'admissibility_pass_rows',
+            'admissibility_fail_rows',
+            'admissibility_unknown_rows',
+        }:
+            row[field] = str(int(value))
+        else:
+            row[field] = format_decimal(float(value))
+    return row
+
+
+def rollup_metrics_fieldnames() -> tuple[str, ...]:
+    return (
+        'row_count',
+        'requested_size_hbar',
+        'requested_notional_usdc',
+        'filled_size_hbar',
+        'filled_notional_usdc',
+        'remainder_size_hbar',
+        'fill_rate',
+        'avg_completion_ratio',
+        'avg_slippage_bps',
+        'avg_abs_slippage_bps',
+        'finite_slippage_rows',
+        'non_finite_slippage_rows',
+        'full_fill_rows',
+        'partial_fill_rows',
+        'zero_fill_rows',
+        'fee_covered_rows',
+        'fee_missing_rows',
+        'admissibility_pass_rows',
+        'admissibility_fail_rows',
+        'admissibility_unknown_rows',
+    )
 
 
 def rollup_metrics(rollup: RollupSummary) -> dict[str, str]:
@@ -204,7 +246,11 @@ def render_final_comparison_report(
     benchmark_status: PublishedBenchmarkStatus,
     caveats: list[str],
 ) -> str:
-    headline_rows = [row for row in aggregate_rows if row['lane'] != 'lambdaplex_published']
+    headline_rows = [
+        row
+        for row in aggregate_rows
+        if row['lane'] != 'lambdaplex_published' or benchmark_status.comparable
+    ]
     benchmark_rows = [row for row in aggregate_rows if row['lane'] == 'lambdaplex_published']
 
     lines = ['# Final Comparison Report', '', '## Study caveats', '']
@@ -265,12 +311,16 @@ def render_final_comparison_report(
                 [
                     ('Benchmark', 'lane_label'),
                     ('Status', 'data_status'),
+                    ('Comparable', 'benchmark_comparable'),
+                    ('Source notes', 'source_notes_path'),
                     ('Published headline metrics', 'published_headline_metrics'),
+                    ('Provenance', 'benchmark_provenance'),
                     ('Notes', 'notes'),
                 ],
             ),
             '',
             f'Lambdaplex market: `{benchmark_status.market}`',
+            f'Lambdaplex benchmark schema: `{benchmark_status.schema_version}`',
         ]
     )
     return '\n'.join(lines) + '\n'

@@ -1,0 +1,26 @@
+{
+  "schema_version": "rh09_lambdaplex_published_panel_v1",
+  "source": "Lambdaplex published benchmark panel",
+  "market": "HBAR/USDC",
+  "status": "placeholder",
+  "source_notes_path": "benchmarks/lambdaplex/source-notes.md",
+  "headline_metrics": {},
+  "comparable_headline_metrics": {},
+  "provenance": {
+    "local_payload_state": "placeholder_only",
+    "local_payload_complete": false,
+    "blocking_reason": "Comparable Lambdaplex headline metrics are not recorded locally in this worktree, so RH-09 can only ship the ingestion contract and explicit blocker handling.",
+    "captured_artifacts": [
+      "benchmarks/lambdaplex/published-results.json",
+      "benchmarks/lambdaplex/source-notes.md"
+    ],
+    "mapping_notes": [
+      "Only comparable_headline_metrics are eligible for merge into reporting outputs.",
+      "Raw headline_metrics remain provenance-only until explicitly mapped."
+    ]
+  },
+  "notes": [
+    "Populate this payload only from locally tracked published Lambdaplex outputs.",
+    "Do not invent benchmark values when rerunning reporting-pack."
+  ]
+}

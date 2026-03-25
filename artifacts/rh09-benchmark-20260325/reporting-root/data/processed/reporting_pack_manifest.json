@@ -1,0 +1,117 @@
+{
+  "generated_at_utc": "2026-03-25T01:48:53Z",
+  "inputs": {
+    "benchmark_path": "/Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness/.worktrees/feat-ssv3-rh09-lambdaplex-benchmark-panel/artifacts/rh09-benchmark-20260325/reporting-root/benchmarks/lambdaplex/published-results.json",
+    "benchmark_bytes": 1085,
+    "benchmark_source_notes_path": "/Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness/.worktrees/feat-ssv3-rh09-lambdaplex-benchmark-panel/artifacts/rh09-benchmark-20260325/reporting-root/benchmarks/lambdaplex/source-notes.md",
+    "benchmark_source_notes_bytes": 1492,
+    "reporting_config_path": "/Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness/.worktrees/feat-ssv3-rh09-lambdaplex-benchmark-panel/artifacts/rh09-benchmark-20260325/reporting-root/config/reporting.yaml",
+    "reporting_config_bytes": 134,
+    "bucket_config_path": "/Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness/.worktrees/feat-ssv3-rh09-lambdaplex-benchmark-panel/artifacts/rh09-benchmark-20260325/reporting-root/config/buckets.yaml",
+    "bucket_config_bytes": 358,
+    "v2_realized_csv_path": "/Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness/.worktrees/feat-ssv3-rh09-lambdaplex-benchmark-panel/artifacts/rh09-benchmark-20260325/reporting-root/data/processed/lane_v2_baseline.csv",
+    "v2_realized_csv_bytes": 4085610797,
+    "v2_realized_summary_path": "/Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness/.worktrees/feat-ssv3-rh09-lambdaplex-benchmark-panel/artifacts/rh09-benchmark-20260325/reporting-root/data/processed/v2_baseline_summary.json",
+    "v2_realized_summary_bytes": 4137,
+    "v2_realized_manifest_path": "/Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness/.worktrees/feat-ssv3-rh09-lambdaplex-benchmark-panel/artifacts/rh09-benchmark-20260325/reporting-root/data/processed/v2_baseline_manifest.json",
+    "v2_realized_manifest_bytes": 3652,
+    "3a_pure_book_csv_path": "/Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness/.worktrees/feat-ssv3-rh09-lambdaplex-benchmark-panel/artifacts/rh09-benchmark-20260325/reporting-root/data/processed/lane_3a_pure_book.csv",
+    "3a_pure_book_csv_bytes": 4348296322,
+    "3a_pure_book_summary_path": "/Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness/.worktrees/feat-ssv3-rh09-lambdaplex-benchmark-panel/artifacts/rh09-benchmark-20260325/reporting-root/data/processed/pure_book_summary.json",
+    "3a_pure_book_summary_bytes": 5805,
+    "3a_pure_book_manifest_path": "/Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness/.worktrees/feat-ssv3-rh09-lambdaplex-benchmark-panel/artifacts/rh09-benchmark-20260325/reporting-root/data/processed/pure_book_manifest.json",
+    "3a_pure_book_manifest_bytes": 5265,
+    "3b_hybrid_csv_path": "/Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness/.worktrees/feat-ssv3-rh09-lambdaplex-benchmark-panel/artifacts/rh09-benchmark-20260325/reporting-root/data/processed/lane_3b_hybrid.csv",
+    "3b_hybrid_csv_bytes": 4572908059,
+    "3b_hybrid_summary_path": "/Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness/.worktrees/feat-ssv3-rh09-lambdaplex-benchmark-panel/artifacts/rh09-benchmark-20260325/reporting-root/data/processed/hybrid_summary.json",
+    "3b_hybrid_summary_bytes": 7253,
+    "3b_hybrid_manifest_path": "/Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness/.worktrees/feat-ssv3-rh09-lambdaplex-benchmark-panel/artifacts/rh09-benchmark-20260325/reporting-root/data/processed/hybrid_manifest.json",
+    "3b_hybrid_manifest_bytes": 6510
+  },
+  "outputs": {
+    "comparison_aggregate_path": "/Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness/.worktrees/feat-ssv3-rh09-lambdaplex-benchmark-panel/artifacts/rh09-benchmark-20260325/reporting-root/data/processed/comparison_aggregate.csv",
+    "comparison_aggregate_bytes": 2474,
+    "comparison_by_bucket_path": "/Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness/.worktrees/feat-ssv3-rh09-lambdaplex-benchmark-panel/artifacts/rh09-benchmark-20260325/reporting-root/data/processed/comparison_by_bucket.csv",
+    "comparison_by_bucket_bytes": 3656,
+    "comparison_by_side_path": "/Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness/.worktrees/feat-ssv3-rh09-lambdaplex-benchmark-panel/artifacts/rh09-benchmark-20260325/reporting-root/data/processed/comparison_by_side.csv",
+    "comparison_by_side_bytes": 1883,
+    "final_comparison_path": "/Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness/.worktrees/feat-ssv3-rh09-lambdaplex-benchmark-panel/artifacts/rh09-benchmark-20260325/reporting-root/reports/final-comparison.md",
+    "final_comparison_bytes": 4340,
+    "reconciliation_path": "/Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness/.worktrees/feat-ssv3-rh09-lambdaplex-benchmark-panel/artifacts/rh09-benchmark-20260325/reporting-root/reports/reconciliation.md",
+    "reconciliation_bytes": 1014,
+    "validation_path": "/Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness/.worktrees/feat-ssv3-rh09-lambdaplex-benchmark-panel/artifacts/rh09-benchmark-20260325/reporting-root/reports/validation.md",
+    "validation_bytes": 1343,
+    "summary_path": "/Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness/.worktrees/feat-ssv3-rh09-lambdaplex-benchmark-panel/artifacts/rh09-benchmark-20260325/reporting-root/data/processed/reporting_pack_summary.json",
+    "summary_bytes": 29832,
+    "manifest_path": "/Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness/.worktrees/feat-ssv3-rh09-lambdaplex-benchmark-panel/artifacts/rh09-benchmark-20260325/reporting-root/data/processed/reporting_pack_manifest.json"
+  },
+  "benchmark": {
+    "schema_version": "rh09_lambdaplex_published_panel_v1",
+    "source": "Lambdaplex published benchmark panel",
+    "market": "HBAR/USDC",
+    "status": "placeholder",
+    "comparable": false,
+    "source_notes_path": "benchmarks/lambdaplex/source-notes.md",
+    "headline_metrics": {},
+    "comparable_headline_metrics": {},
+    "provenance": {
+      "local_payload_state": "placeholder_only",
+      "local_payload_complete": false,
+      "blocking_reason": "Comparable Lambdaplex headline metrics are not recorded locally in this worktree, so RH-09 can only ship the ingestion contract and explicit blocker handling.",
+      "captured_artifacts": [
+        "benchmarks/lambdaplex/published-results.json",
+        "benchmarks/lambdaplex/source-notes.md"
+      ],
+      "mapping_notes": [
+        "Only comparable_headline_metrics are eligible for merge into reporting outputs.",
+        "Raw headline_metrics remain provenance-only until explicitly mapped."
+      ]
+    },
+    "notes": [
+      "Populate this payload only from locally tracked published Lambdaplex outputs.",
+      "Do not invent benchmark values when rerunning reporting-pack."
+    ]
+  },
+  "validation": {
+    "lanes": [
+      {
+        "lane": "v2_realized",
+        "lane_label": "V2 baseline",
+        "row_count_matches": "true",
+        "requested_totals_match": "true",
+        "filled_totals_match": "true",
+        "completion_counts_match": "true",
+        "fee_coverage_match": "true",
+        "status": "pass"
+      },
+      {
+        "lane": "3a_pure_book",
+        "lane_label": "3A pure-book",
+        "row_count_matches": "true",
+        "requested_totals_match": "true",
+        "filled_totals_match": "true",
+        "completion_counts_match": "true",
+        "fee_coverage_match": "true",
+        "status": "pass"
+      },
+      {
+        "lane": "3b_hybrid",
+        "lane_label": "3B hybrid",
+        "row_count_matches": "true",
+        "requested_totals_match": "true",
+        "filled_totals_match": "true",
+        "completion_counts_match": "true",
+        "fee_coverage_match": "true",
+        "status": "pass"
+      }
+    ],
+    "global_checks": [
+      "Lane order fixed to: V2 baseline, 3A pure-book, 3B hybrid.",
+      "Side split enabled in config/reporting.yaml: true.",
+      "Bucket split enabled in config/reporting.yaml: true.",
+      "Bucket basis from config/buckets.yaml: `requested_notional` with semantics `lower_inclusive_upper_exclusive_except_last`.",
+      "All direct lane rollups matched mounted lane summaries: true.",
+      "Lambdaplex published panel status is `placeholder`; no comparable benchmark metrics were merged. Provenance: local_payload_state=placeholder_only | local_payload_complete=false | Comparable Lambdaplex headline metrics are not recorded locally in this worktree, so RH-09 can only ship the ingestion contract and explicit blocker handling. | mapping_notes=Only comparable_headline_metrics are eligible for merge into reporting outputs.; Raw headline_metrics remain provenance-only until explicitly mapped. | captured_artifacts=benchmarks/lambdaplex/published-results.json, benchmarks/lambdaplex/source-notes.md."
+    ]
+  }
+}
