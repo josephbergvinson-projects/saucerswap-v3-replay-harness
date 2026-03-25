@@ -33,6 +33,8 @@ RH-10 does **not**:
 - `artifacts/rh10-review-pack-20260325/REVIEWER_MEMO_184c0b4.md`
 - `artifacts/rh10-review-pack-20260325/EXECUTIVE_SUMMARY_DISCORD_SLACK.md`
 - `artifacts/rh10-review-pack-20260325/PUSH_CLOSEOUT_PATH_RH05_RH10.md`
+- `artifacts/rh10-review-pack-20260325/REMOTE_REVIEW_MERGE_PLAN_POST_PUSH.md`
+- `artifacts/rh10-review-pack-20260325/TRELLO_DONE_CLOSEOUT_COMMENTS_DRAFT.md`
 - `artifacts/rh10-review-pack-20260325/INDEX.md`
 
 ### Updated
@@ -46,9 +48,11 @@ RH-10 does **not**:
 4. `artifacts/rh10-review-pack-20260325/REVIEWER_MEMO_184c0b4.md`
 5. `artifacts/rh10-review-pack-20260325/EXECUTIVE_SUMMARY_DISCORD_SLACK.md`
 6. `artifacts/rh10-review-pack-20260325/PUSH_CLOSEOUT_PATH_RH05_RH10.md`
-7. `artifacts/rh09-benchmark-20260325/reporting-root/reports/final-comparison.md`
-8. `artifacts/rh09-benchmark-20260325/reporting-root/reports/validation.md`
-9. `benchmarks/lambdaplex/source-notes.md`
+7. `artifacts/rh10-review-pack-20260325/REMOTE_REVIEW_MERGE_PLAN_POST_PUSH.md`
+8. `artifacts/rh10-review-pack-20260325/TRELLO_DONE_CLOSEOUT_COMMENTS_DRAFT.md`
+9. `artifacts/rh09-benchmark-20260325/reporting-root/reports/final-comparison.md`
+10. `artifacts/rh09-benchmark-20260325/reporting-root/reports/validation.md`
+11. `benchmarks/lambdaplex/source-notes.md`
 
 ## Primary decision signal
 
