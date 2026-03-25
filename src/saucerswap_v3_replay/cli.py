@@ -7,6 +7,7 @@ from pathlib import Path
 from .baseline.v2_realized import run_v2_realized_baseline
 from .extract.gigabrain import build_extract_manifest, write_extract_manifest
 from .normalize.pipeline import run_normalization
+from .reporting.pack import run_reporting_pack
 from .settings import load_study_settings
 from .sim.hybrid import run_hybrid_lane
 from .sim.pure_book import run_pure_book_lane
@@ -106,6 +107,25 @@ def cmd_hybrid(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_reporting_pack(args: argparse.Namespace) -> int:
+    root = Path(args.root).resolve()
+    result = run_reporting_pack(root)
+    payload = {
+        'comparison_aggregate_path': str(result.comparison_aggregate_path.relative_to(root)),
+        'comparison_by_bucket_path': str(result.comparison_by_bucket_path.relative_to(root)),
+        'comparison_by_side_path': str(result.comparison_by_side_path.relative_to(root)),
+        'final_comparison_path': str(result.final_comparison_path.relative_to(root)),
+        'reconciliation_path': str(result.reconciliation_path.relative_to(root)),
+        'validation_path': str(result.validation_path.relative_to(root)),
+        'summary_path': str(result.summary_path.relative_to(root)),
+        'manifest_path': str(result.manifest_path.relative_to(root)),
+        'benchmark': result.summary['benchmark'],
+        'validation': result.summary['validation'],
+    }
+    print(json.dumps(payload, indent=2))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog='saucerswap-v3-replay')
     sub = parser.add_subparsers(dest='command', required=True)
@@ -139,6 +159,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     hybrid.add_argument('--root', default='.', help='Repo/worktree root to build from')
     hybrid.set_defaults(func=cmd_hybrid)
+
+    reporting_pack = sub.add_parser(
+        'reporting-pack',
+        help='Build the RH-07 comparison pack from mounted RH-04/RH-05/RH-06 artifacts',
+    )
+    reporting_pack.add_argument('--root', default='.', help='Repo/worktree root to build from')
+    reporting_pack.set_defaults(func=cmd_reporting_pack)
     return parser
 
 

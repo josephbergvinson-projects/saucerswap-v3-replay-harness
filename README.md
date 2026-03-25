@@ -142,3 +142,24 @@ This materializes:
 - `data/processed/hybrid_manifest.json`
 
 The 3B path treats `data/processed/lane_3a_pure_book.csv` and `data/processed/lane_v2_baseline.csv` as mounted read-only inputs, preserves one replay unit to one hybrid execution record, and only routes the RH-05 residual remainder to the V2 backstop when the frozen rule in `config/hybrid_rule.yaml` passes. If a residual cannot route, `completion_ratio` and `remainder_size` stay completion-aware rather than forcing a full fill.
+
+## Reporting-pack rerun
+
+Once the mounted RH-04 baseline, RH-05 pure-book, and RH-06 hybrid artifacts exist under `data/processed/`, build the first reporting pack with:
+
+```bash
+cd /Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness
+make reporting-pack
+```
+
+This materializes:
+- `data/processed/comparison_aggregate.csv`
+- `data/processed/comparison_by_bucket.csv`
+- `data/processed/comparison_by_side.csv`
+- `data/processed/reporting_pack_summary.json`
+- `data/processed/reporting_pack_manifest.json`
+- `reports/final-comparison.md`
+- `reports/reconciliation.md`
+- `reports/validation.md`
+
+The reporting path is read-only with respect to the mounted RH-03 through RH-06 artifacts. If the Lambdaplex published panel is still placeholder or incomplete, the pack discloses that state explicitly and does not fabricate benchmark metrics.

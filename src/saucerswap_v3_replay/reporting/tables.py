@@ -1,13 +1,367 @@
 from __future__ import annotations
 
+import json
+from typing import Any
 
-def render_markdown_summary(summary: dict[str, dict[str, float]]) -> str:
-    lines = [
-        '| Lane | Count | Avg completion | Avg execution price |',
-        '|---|---:|---:|---:|',
-    ]
-    for lane, row in summary.items():
-        lines.append(
-            f"| {lane} | {int(row['count'])} | {row['avg_completion_ratio']:.4f} | {row['avg_execution_price']:.6f} |"
+from ..benchmarks.lambdaplex import PublishedBenchmarkStatus
+from ..metrics.summaries import RollupSummary
+from ..normalize.events import format_decimal, format_scaled_int
+
+AGGREGATE_FIELDNAMES = [
+    'lane',
+    'lane_label',
+    'data_status',
+    'row_count',
+    'requested_size_hbar',
+    'requested_notional_usdc',
+    'filled_size_hbar',
+    'filled_notional_usdc',
+    'remainder_size_hbar',
+    'fill_rate',
+    'avg_completion_ratio',
+    'avg_slippage_bps',
+    'avg_abs_slippage_bps',
+    'finite_slippage_rows',
+    'non_finite_slippage_rows',
+    'full_fill_rows',
+    'partial_fill_rows',
+    'zero_fill_rows',
+    'fee_covered_rows',
+    'fee_missing_rows',
+    'admissibility_pass_rows',
+    'admissibility_fail_rows',
+    'admissibility_unknown_rows',
+    'fee_precision',
+    'published_headline_metrics',
+    'notes',
+]
+
+SEGMENT_FIELDNAMES = [
+    'segment',
+    'lane',
+    'lane_label',
+    'row_count',
+    'requested_size_hbar',
+    'requested_notional_usdc',
+    'filled_size_hbar',
+    'filled_notional_usdc',
+    'remainder_size_hbar',
+    'fill_rate',
+    'avg_completion_ratio',
+    'avg_slippage_bps',
+    'avg_abs_slippage_bps',
+    'finite_slippage_rows',
+    'non_finite_slippage_rows',
+    'full_fill_rows',
+    'partial_fill_rows',
+    'zero_fill_rows',
+    'fee_covered_rows',
+    'fee_missing_rows',
+    'admissibility_pass_rows',
+    'admissibility_fail_rows',
+    'admissibility_unknown_rows',
+]
+
+
+def build_aggregate_rows(
+    *,
+    lane_order: list[str],
+    lane_labels: dict[str, str],
+    lane_rollups: dict[str, RollupSummary],
+    lane_fee_precision: dict[str, str],
+    lane_notes: dict[str, str],
+    benchmark_status: PublishedBenchmarkStatus,
+) -> list[dict[str, str]]:
+    rows = [
+        build_rollup_row(
+            lane=lane,
+            lane_label=lane_labels[lane],
+            rollup=lane_rollups[lane],
+            fee_precision=lane_fee_precision.get(lane, ''),
+            notes=lane_notes.get(lane, ''),
         )
+        for lane in lane_order
+        if lane in lane_rollups
+    ]
+    rows.append(build_benchmark_row(benchmark_status))
+    return rows
+
+
+def build_segment_rows(
+    *,
+    segment_order: list[str],
+    lane_order: list[str],
+    lane_labels: dict[str, str],
+    lane_segment_rollups: dict[str, dict[str, RollupSummary]],
+) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for segment in segment_order:
+        for lane in lane_order:
+            rollup = lane_segment_rollups.get(lane, {}).get(segment)
+            if rollup is None:
+                continue
+            rows.append(
+                {
+                    'segment': segment,
+                    'lane': lane,
+                    'lane_label': lane_labels[lane],
+                    **rollup_metrics(rollup),
+                }
+            )
+    return rows
+
+
+def build_rollup_row(
+    *,
+    lane: str,
+    lane_label: str,
+    rollup: RollupSummary,
+    fee_precision: str,
+    notes: str,
+) -> dict[str, str]:
+    return {
+        'lane': lane,
+        'lane_label': lane_label,
+        'data_status': 'materialized',
+        **rollup_metrics(rollup),
+        'fee_precision': fee_precision,
+        'published_headline_metrics': '',
+        'notes': notes,
+    }
+
+
+def build_benchmark_row(benchmark_status: PublishedBenchmarkStatus) -> dict[str, str]:
+    headline_metrics = ''
+    if benchmark_status.headline_metrics:
+        headline_metrics = json.dumps(benchmark_status.headline_metrics, sort_keys=True)
+
+    note_parts = []
+    if not benchmark_status.comparable:
+        note_parts.append('Published panel is placeholder or incomplete; no comparable benchmark metrics were merged.')
+    if benchmark_status.notes:
+        note_parts.append(benchmark_status.notes)
+
+    return {
+        'lane': 'lambdaplex_published',
+        'lane_label': 'Lambdaplex published panel',
+        'data_status': benchmark_status.status,
+        'row_count': '',
+        'requested_size_hbar': '',
+        'requested_notional_usdc': '',
+        'filled_size_hbar': '',
+        'filled_notional_usdc': '',
+        'remainder_size_hbar': '',
+        'fill_rate': '',
+        'avg_completion_ratio': '',
+        'avg_slippage_bps': '',
+        'avg_abs_slippage_bps': '',
+        'finite_slippage_rows': '',
+        'non_finite_slippage_rows': '',
+        'full_fill_rows': '',
+        'partial_fill_rows': '',
+        'zero_fill_rows': '',
+        'fee_covered_rows': '',
+        'fee_missing_rows': '',
+        'admissibility_pass_rows': '',
+        'admissibility_fail_rows': '',
+        'admissibility_unknown_rows': '',
+        'fee_precision': '',
+        'published_headline_metrics': headline_metrics,
+        'notes': ' '.join(note_parts).strip(),
+    }
+
+
+def rollup_metrics(rollup: RollupSummary) -> dict[str, str]:
+    return {
+        'row_count': str(rollup.row_count),
+        'requested_size_hbar': format_scaled_int(rollup.requested_size_raw_total, 8),
+        'requested_notional_usdc': format_scaled_int(rollup.requested_notional_raw_total, 6),
+        'filled_size_hbar': format_decimal(rollup.filled_size_total),
+        'filled_notional_usdc': format_decimal(rollup.filled_notional_total),
+        'remainder_size_hbar': format_decimal(rollup.remainder_size_total),
+        'fill_rate': format_decimal(rollup.fill_rate),
+        'avg_completion_ratio': format_decimal(rollup.avg_completion_ratio),
+        'avg_slippage_bps': format_decimal(rollup.avg_slippage_bps),
+        'avg_abs_slippage_bps': format_decimal(rollup.avg_abs_slippage_bps),
+        'finite_slippage_rows': str(rollup.finite_slippage_rows),
+        'non_finite_slippage_rows': str(rollup.non_finite_slippage_rows),
+        'full_fill_rows': str(rollup.full_fill_rows),
+        'partial_fill_rows': str(rollup.partial_fill_rows),
+        'zero_fill_rows': str(rollup.zero_fill_rows),
+        'fee_covered_rows': str(rollup.fee_covered_rows),
+        'fee_missing_rows': str(rollup.fee_missing_rows),
+        'admissibility_pass_rows': str(rollup.admissibility_pass_rows),
+        'admissibility_fail_rows': str(rollup.admissibility_fail_rows),
+        'admissibility_unknown_rows': str(rollup.admissibility_unknown_rows),
+    }
+
+
+def render_final_comparison_report(
+    *,
+    aggregate_rows: list[dict[str, str]],
+    side_rows: list[dict[str, str]],
+    bucket_rows: list[dict[str, str]],
+    benchmark_status: PublishedBenchmarkStatus,
+    caveats: list[str],
+) -> str:
+    headline_rows = [row for row in aggregate_rows if row['lane'] != 'lambdaplex_published']
+    benchmark_rows = [row for row in aggregate_rows if row['lane'] == 'lambdaplex_published']
+
+    lines = ['# Final Comparison Report', '', '## Study caveats', '']
+    for caveat in caveats:
+        lines.append(f'- {caveat}')
+
+    lines.extend(
+        [
+            '',
+            '## Headline lane comparison',
+            '',
+            render_markdown_table(
+                headline_rows,
+                [
+                    ('Lane', 'lane_label'),
+                    ('Rows', 'row_count'),
+                    ('Fill rate', 'fill_rate'),
+                    ('Avg completion', 'avg_completion_ratio'),
+                    ('Avg slippage (bps)', 'avg_slippage_bps'),
+                    ('Remainder (HBAR)', 'remainder_size_hbar'),
+                    ('Notes', 'notes'),
+                ],
+            ),
+            '',
+            '## Side split',
+            '',
+            render_markdown_table(
+                side_rows,
+                [
+                    ('Side', 'segment'),
+                    ('Lane', 'lane_label'),
+                    ('Rows', 'row_count'),
+                    ('Fill rate', 'fill_rate'),
+                    ('Avg completion', 'avg_completion_ratio'),
+                    ('Avg slippage (bps)', 'avg_slippage_bps'),
+                ],
+            ),
+            '',
+            '## Bucket split',
+            '',
+            render_markdown_table(
+                bucket_rows,
+                [
+                    ('Bucket', 'segment'),
+                    ('Lane', 'lane_label'),
+                    ('Rows', 'row_count'),
+                    ('Requested notional (USDC)', 'requested_notional_usdc'),
+                    ('Fill rate', 'fill_rate'),
+                    ('Avg completion', 'avg_completion_ratio'),
+                    ('Avg slippage (bps)', 'avg_slippage_bps'),
+                ],
+            ),
+            '',
+            '## Benchmark panel status',
+            '',
+            render_markdown_table(
+                benchmark_rows,
+                [
+                    ('Benchmark', 'lane_label'),
+                    ('Status', 'data_status'),
+                    ('Published headline metrics', 'published_headline_metrics'),
+                    ('Notes', 'notes'),
+                ],
+            ),
+            '',
+            f'Lambdaplex market: `{benchmark_status.market}`',
+        ]
+    )
+    return '\n'.join(lines) + '\n'
+
+
+def render_reconciliation_report(
+    *,
+    reconciliation_rows: list[dict[str, str]],
+    source_rows: list[dict[str, str]],
+) -> str:
+    lines = [
+        '# Reconciliation Report',
+        '',
+        '## Mounted artifact checks',
+        '',
+        render_markdown_table(
+            reconciliation_rows,
+            [
+                ('Lane', 'lane_label'),
+                ('Rows', 'row_count'),
+                ('Counts match', 'counts_match'),
+                ('Size check', 'size_check'),
+                ('Alignment check', 'alignment_check'),
+                ('Mapping fingerprint', 'mapping_fingerprint'),
+            ],
+        ),
+        '',
+        '## Input surfaces',
+        '',
+        render_markdown_table(
+            source_rows,
+            [
+                ('Lane', 'lane_label'),
+                ('Lane CSV', 'lane_csv'),
+                ('Summary JSON', 'summary_json'),
+                ('Manifest JSON', 'manifest_json'),
+            ],
+        ),
+    ]
+    return '\n'.join(lines) + '\n'
+
+
+def render_validation_report(
+    *,
+    validation_rows: list[dict[str, str]],
+    global_checks: list[str],
+) -> str:
+    lines = [
+        '# Validation Report',
+        '',
+        '## Rollup validation',
+        '',
+        render_markdown_table(
+            validation_rows,
+            [
+                ('Lane', 'lane_label'),
+                ('Rows', 'row_count_matches'),
+                ('Requested totals', 'requested_totals_match'),
+                ('Filled totals', 'filled_totals_match'),
+                ('Completion counts', 'completion_counts_match'),
+                ('Fee coverage', 'fee_coverage_match'),
+                ('Status', 'status'),
+            ],
+        ),
+        '',
+        '## Global checks',
+        '',
+    ]
+    for check in global_checks:
+        lines.append(f'- {check}')
+    return '\n'.join(lines) + '\n'
+
+
+def render_markdown_table(
+    rows: list[dict[str, Any]],
+    columns: list[tuple[str, str]],
+) -> str:
+    headers = [label for label, _ in columns]
+    divider = ['---'] * len(columns)
+    lines = [
+        '| ' + ' | '.join(headers) + ' |',
+        '| ' + ' | '.join(divider) + ' |',
+    ]
+    for row in rows:
+        values = [escape_markdown_cell(row.get(key, '')) for _, key in columns]
+        lines.append('| ' + ' | '.join(values) + ' |')
     return '\n'.join(lines)
+
+
+def escape_markdown_cell(value: Any) -> str:
+    text = str(value)
+    if not text:
+        return ''
+    return text.replace('|', '\\|')

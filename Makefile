@@ -2,10 +2,10 @@ PYTHON ?= python3
 NODE ?= /opt/homebrew/bin/node
 PACKAGE := saucerswap_v3_replay
 
-.PHONY: help validate-config test compile layout export-metabase normalize-event-level v2-baseline pure-book hybrid
+.PHONY: help validate-config test compile layout export-metabase normalize-event-level v2-baseline pure-book hybrid reporting-pack
 
 help:
-	@echo "Targets: validate-config test compile layout export-metabase normalize-event-level v2-baseline pure-book hybrid"
+	@echo "Targets: validate-config test compile layout export-metabase normalize-event-level v2-baseline pure-book hybrid reporting-pack"
 
 validate-config:
 	PYTHONPATH=src $(PYTHON) -m $(PACKAGE).cli validate-config
@@ -30,6 +30,9 @@ pure-book:
 
 hybrid:
 	PYTHONPATH=src $(PYTHON) -m $(PACKAGE).cli hybrid
+
+reporting-pack:
+	PYTHONPATH=src $(PYTHON) -m $(PACKAGE).cli reporting-pack
 
 export-metabase:
 	$(NODE) scripts/export_metabase_csv.js
