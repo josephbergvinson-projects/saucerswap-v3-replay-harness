@@ -4,12 +4,12 @@
 
 | Lane | Review branch tip | Tip subject | Core implementation commit | Tracker state |
 |---|---|---|---|---|
-| RH-05 | `feat/ssv3-rh05-3a-pure-book` @ `1babf4d` | `feat: add RH-05 pure-book lane` | `1babf4d` | needs Trello review card closeout sync |
-| RH-06 | `feat/ssv3-rh06-3b-hybrid-lane` @ `3e2972f` | `docs: add RH-06 reviewer memo` | `0b302a9` | needs Trello review card closeout sync |
-| RH-07 | `feat/ssv3-rh07-reporting-pack` @ `763f06a` | `docs: add RH-07 reviewer memo` | `00761a7` | needs Trello review card closeout sync |
+| RH-05 | `feat/ssv3-rh05-3a-pure-book` @ `1babf4d` | `feat: add RH-05 pure-book lane` | `1babf4d` | Review |
+| RH-06 | `feat/ssv3-rh06-3b-hybrid-lane` @ `3e2972f` | `docs: add RH-06 reviewer memo` | `0b302a9` | Review |
+| RH-07 | `feat/ssv3-rh07-reporting-pack` @ `763f06a` | `docs: add RH-07 reviewer memo` | `00761a7` | Review |
 | RH-08 | `feat/ssv3-rh08-validation-polish` @ `abe9394` | `docs: add RH-08 reviewer memo` | `01ace26` | Review |
 | RH-09 | `feat/ssv3-rh09-lambdaplex-benchmark-panel` @ `bd4c8f5` | `docs: add RH-09 review memos` | `d78c852` | Review |
-| RH-10 | `feat/ssv3-rh10-review-pack-closeout` @ `184c0b4` | `docs: add RH-10 final review pack closeout` | `184c0b4` | Review |
+| RH-10 | `feat/ssv3-rh10-review-pack-closeout` @ `51400d1` | `docs: add RH-10 reviewer and closeout notes` | `184c0b4` | Review |
 
 ## Recommended push strategy
 
@@ -70,11 +70,12 @@ Choose one of these two closeout modes after review:
 ## Trello closeout path
 
 Current truthful Trello state:
+- RH-05 — Review
+- RH-06 — Review
+- RH-07 — Review
 - RH-08 — Review
 - RH-09 — Review
 - RH-10 — Review
-
-For full-stack closeout, add/sync RH-05, RH-06, and RH-07 review cards before or alongside the push so the board matches the real branch stack.
 
 After remote publication and review sign-off:
 - move RH-05 through RH-10 from `Review` to `Done`
