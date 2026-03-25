@@ -9,6 +9,22 @@
   - `reported_average_amm_slippage_bps = 15.47`
   - `reported_grid_strategy_slippage_bps = 2.82`
 
+## 2026-03-25 continuation — local evidence sweep result
+
+A repo + workspace-local evidence sweep was rerun on the current main-equivalent worktree state.
+
+Result:
+
+- found only the tracked contract, source notes, prior reconciliation artifacts, reporting outputs, and planning docs that describe Lambdaplex as a published benchmark panel
+- did **not** find a local published methodology export or benchmark table that discloses the missing comparable headline fields
+- did **not** find a workspace-local Lambdaplex slide/image/PDF artifact beyond the repo's generic planning PDFs
+
+Therefore the benchmark remains honestly blocked at `status = incomplete`.
+
+See blocker artifact:
+
+- `artifacts/rh11-comparison-unlock-20260325/LAMBDAPLEX_COMPARABILITY_BLOCKER_MEMO.md`
+
 ## 2026-03-25 reconciliation note — can `15.47` / `2.82` map into our comparable schema?
 
 Short answer: **not yet**.
