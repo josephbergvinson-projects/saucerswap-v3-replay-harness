@@ -48,6 +48,50 @@ class LambdaplexBenchmarkContractTests(unittest.TestCase):
             )
             self.assertEqual(status.as_dict()['source_notes_path'], 'benchmarks/lambdaplex/source-notes.md')
 
+    def test_load_incomplete_partial_slide_metrics_remains_provenance_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            benchmark_path = self._write_contract(
+                root,
+                {
+                    'schema_version': 'rh09_lambdaplex_published_panel_v1',
+                    'source': 'Lambdaplex published benchmark panel',
+                    'market': 'HBAR/USDC',
+                    'status': 'incomplete',
+                    'source_notes_path': 'benchmarks/lambdaplex/source-notes.md',
+                    'headline_metrics': {
+                        'reported_average_amm_slippage_bps': 15.47,
+                        'reported_grid_strategy_slippage_bps': 2.82,
+                    },
+                    'comparable_headline_metrics': {},
+                    'provenance': {
+                        'local_payload_state': 'reported_partial_slide_metrics_only',
+                        'local_payload_complete': False,
+                        'blocking_reason': 'Partial slide metrics are not enough to populate comparable_headline_metrics.',
+                        'captured_artifacts': [
+                            'benchmarks/lambdaplex/published-results.json',
+                            'operator-provided Lambdaplex slide screenshots (2026-03-25)',
+                        ],
+                        'mapping_notes': [
+                            '15.47 / 2.82 remain headline_metrics only.',
+                            'Required comparable fields are still missing.',
+                        ],
+                    },
+                    'notes': [
+                        'Do not treat the slide values as apples-to-apples comparable yet.',
+                    ],
+                },
+            )
+
+            status = load_published_benchmark_status(benchmark_path)
+
+            self.assertEqual(status.status, 'incomplete')
+            self.assertFalse(status.comparable)
+            self.assertEqual(status.headline_metrics['reported_average_amm_slippage_bps'], 15.47)
+            self.assertEqual(status.headline_metrics['reported_grid_strategy_slippage_bps'], 2.82)
+            self.assertEqual(status.comparable_headline_metrics, {})
+            self.assertEqual(status.provenance.local_payload_state, 'reported_partial_slide_metrics_only')
+
     def test_load_comparable_contract_requires_and_keeps_mapped_metrics(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
