@@ -11,6 +11,7 @@ from .reporting.pack import run_reporting_pack
 from .settings import load_study_settings
 from .sim.hybrid import run_hybrid_lane
 from .sim.pure_book import run_pure_book_lane
+from .validation.polish import run_validation_polish
 
 
 def cmd_validate_config(_: argparse.Namespace) -> int:
@@ -126,6 +127,25 @@ def cmd_reporting_pack(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_validation_polish(args: argparse.Namespace) -> int:
+    root = Path(args.root).resolve()
+    result = run_validation_polish(root)
+    payload = {
+        'sampled_realized_v2_json_path': str(result.sampled_realized_v2_json_path.relative_to(root)),
+        'sampled_realized_v2_markdown_path': str(result.sampled_realized_v2_markdown_path.relative_to(root)),
+        'golden_cases_json_path': str(result.golden_cases_json_path.relative_to(root)),
+        'golden_cases_markdown_path': str(result.golden_cases_markdown_path.relative_to(root)),
+        'validation_report_path': str(result.validation_path.relative_to(root)),
+        'summary_path': str(result.summary_path.relative_to(root)),
+        'manifest_path': str(result.manifest_path.relative_to(root)),
+        'overall_status': result.summary['overall_status'],
+        'sampled_realized_v2': result.summary['sampled_realized_v2'],
+        'golden_cases': result.summary['golden_cases'],
+    }
+    print(json.dumps(payload, indent=2))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog='saucerswap-v3-replay')
     sub = parser.add_subparsers(dest='command', required=True)
@@ -166,6 +186,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     reporting_pack.add_argument('--root', default='.', help='Repo/worktree root to build from')
     reporting_pack.set_defaults(func=cmd_reporting_pack)
+
+    validation_polish = sub.add_parser(
+        'validation-polish',
+        help='Build the RH-08 validation polish pack from mounted RH-04/RH-05/RH-06/RH-07 artifacts',
+    )
+    validation_polish.add_argument('--root', default='.', help='Repo/worktree root to build from')
+    validation_polish.set_defaults(func=cmd_validation_polish)
     return parser
 
 

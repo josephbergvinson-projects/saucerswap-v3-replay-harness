@@ -1,5 +1,6 @@
 pure_book:
   total_depth_usd: 20000
+  replenish_per_replay_unit: true
   levels:
     - { spread_bps: 2, weight: 1 }
     - { spread_bps: 4, weight: 1 }

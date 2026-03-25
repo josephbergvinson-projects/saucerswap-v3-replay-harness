@@ -344,6 +344,98 @@ def render_validation_report(
     return '\n'.join(lines) + '\n'
 
 
+def render_validation_polish_report(
+    *,
+    caveats: list[str],
+    rollup_validation_rows: list[dict[str, str]],
+    global_checks: list[str],
+    sample_rows: list[dict[str, str]],
+    golden_rows: list[dict[str, str]],
+    artifact_rows: list[dict[str, str]],
+) -> str:
+    lines = ['# Validation Report', '', '## Study caveats', '']
+    for caveat in caveats:
+        lines.append(f'- {caveat}')
+
+    lines.extend(
+        [
+            '',
+            '## Rollup validation',
+            '',
+            render_markdown_table(
+                rollup_validation_rows,
+                [
+                    ('Lane', 'lane_label'),
+                    ('Rows', 'row_count_matches'),
+                    ('Requested totals', 'requested_totals_match'),
+                    ('Filled totals', 'filled_totals_match'),
+                    ('Completion counts', 'completion_counts_match'),
+                    ('Fee coverage', 'fee_coverage_match'),
+                    ('Status', 'status'),
+                ],
+            ),
+            '',
+            '## Global checks',
+            '',
+        ]
+    )
+    for check in global_checks:
+        lines.append(f'- {check}')
+
+    lines.extend(
+        [
+            '',
+            '## Sampled realized-V2 sanity pack',
+            '',
+            'First observed row per populated `side x requested_notional bucket` segment from mounted `data/processed/lane_v2_baseline.csv`.',
+            '',
+            render_markdown_table(
+                sample_rows,
+                [
+                    ('Segment', 'segment'),
+                    ('Rows in segment', 'rows_in_segment'),
+                    ('Replay unit', 'replay_unit_id'),
+                    ('Requested notional (USDC)', 'requested_notional'),
+                    ('Source ordering key', 'source_ordering_key'),
+                    ('Checks', 'check_summary'),
+                    ('Status', 'status'),
+                ],
+            ),
+            '',
+            '## Toy golden cases',
+            '',
+            'Fixture inputs: `tests/fixtures/toy_book.yaml`, `tests/fixtures/toy_flow.csv`, `tests/fixtures/toy_expected_outputs.json`.',
+            '',
+            render_markdown_table(
+                golden_rows,
+                [
+                    ('Case', 'name'),
+                    ('Lane', 'lane'),
+                    ('Replay unit', 'replay_unit_id'),
+                    ('Completion ratio', 'completion_ratio'),
+                    ('Remainder size', 'remainder_size'),
+                    ('Admissibility', 'admissibility_passed'),
+                    ('Checks', 'check_summary'),
+                    ('Status', 'status'),
+                ],
+            ),
+            '',
+            '## Generated artifacts',
+            '',
+            render_markdown_table(
+                artifact_rows,
+                [
+                    ('Artifact', 'artifact'),
+                    ('Path', 'path'),
+                    ('Status', 'status'),
+                    ('Fingerprint', 'fingerprint'),
+                ],
+            ),
+        ]
+    )
+    return '\n'.join(lines) + '\n'
+
+
 def render_markdown_table(
     rows: list[dict[str, Any]],
     columns: list[tuple[str, str]],

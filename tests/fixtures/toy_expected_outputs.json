@@ -1,8 +1,73 @@
 {
-  "notes": "Toy fixture expectations for unit tests.",
+  "notes": "Toy fixture expectations for RH-08 golden validation.",
+  "hybrid_rule": {
+    "max_buy_slippage_bps": 50,
+    "max_sell_slippage_bps": 50
+  },
   "cases": [
-    "pure_book_partial_fill",
-    "hybrid_admissibility_fail",
-    "hybrid_admissibility_pass"
+    {
+      "name": "pure_book_partial_fill",
+      "expected": {
+        "lane": "3a_pure_book",
+        "replay_unit_id": "u1",
+        "side": "buy",
+        "requested_size": "250",
+        "requested_notional": "25000",
+        "filled_size": "199.940019992803",
+        "filled_notional": "20000",
+        "completion_ratio": "0.799760079971",
+        "reference_price": "100",
+        "avg_execution_price": "100.0299990003",
+        "execution_slippage_bps": "2.999900029992",
+        "remainder_size": "50.059980007197",
+        "route_breakdown": {
+          "pure_book": "199.940019992803"
+        },
+        "admissibility_passed": null
+      }
+    },
+    {
+      "name": "hybrid_admissibility_fail",
+      "expected": {
+        "lane": "3b_hybrid",
+        "replay_unit_id": "u2",
+        "side": "sell",
+        "requested_size": "250",
+        "requested_notional": "25000",
+        "filled_size": "200.060020007203",
+        "filled_notional": "20000",
+        "completion_ratio": "0.800240080029",
+        "reference_price": "100",
+        "avg_execution_price": "99.9699989997",
+        "execution_slippage_bps": "3.001000360134",
+        "remainder_size": "49.939979992797",
+        "route_breakdown": {
+          "pure_book": "200.060020007203"
+        },
+        "admissibility_passed": false
+      }
+    },
+    {
+      "name": "hybrid_admissibility_pass",
+      "expected": {
+        "lane": "3b_hybrid",
+        "replay_unit_id": "u3",
+        "side": "buy",
+        "requested_size": "250",
+        "requested_notional": "25000",
+        "filled_size": "250",
+        "filled_notional": "25021.015994721885",
+        "completion_ratio": "1",
+        "reference_price": "100",
+        "avg_execution_price": "100.084063978888",
+        "execution_slippage_bps": "8.406397888754",
+        "remainder_size": "0",
+        "route_breakdown": {
+          "pure_book": "199.940019992803",
+          "v2_backstop": "50.059980007197"
+        },
+        "admissibility_passed": true
+      }
+    }
   ]
 }

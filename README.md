@@ -61,6 +61,7 @@ This is the short version of the canonical build plan in `docs/planning/executio
 5. Add 3A pure-book lane
 6. Add 3B hybrid lane with study-owned admissibility rule
 7. Produce comparison pack and validation outputs
+8. Polish validation outputs on top of the mounted reporting pack
 
 ## Reproducible local Metabase export
 
@@ -163,3 +164,23 @@ This materializes:
 - `reports/validation.md`
 
 The reporting path is read-only with respect to the mounted RH-03 through RH-06 artifacts. If the Lambdaplex published panel is still placeholder or incomplete, the pack discloses that state explicitly and does not fabricate benchmark metrics.
+
+## Validation-polish rerun
+
+Once the mounted RH-04 baseline, RH-05 pure-book, RH-06 hybrid, and RH-07 reporting-pack artifacts exist under `data/processed/`, build the RH-08 validation-polish pack with:
+
+```bash
+cd /Users/openclaw/OpenClawWorkspace/projects/saucerswap-v3-replay-harness
+make validation-polish
+```
+
+This materializes:
+- `reports/generated/rh08-validation-sampled-v2-sanity.json`
+- `reports/generated/rh08-validation-sampled-v2-sanity.md`
+- `reports/generated/rh08-validation-golden-cases.json`
+- `reports/generated/rh08-validation-golden-cases.md`
+- `data/processed/rh08_validation_summary.json`
+- `data/processed/rh08_validation_manifest.json`
+- `reports/validation.md`
+
+The RH-08 path is read-only with respect to the mounted upstream artifacts. It reuses the mounted baseline lane for deterministic sampled realized-V2 sanity checks, replays explicit toy-fixture golden cases for pure-book and hybrid behavior, and carries forward the mounted RH-07 rollup/global validation context into the final `reports/validation.md`.
