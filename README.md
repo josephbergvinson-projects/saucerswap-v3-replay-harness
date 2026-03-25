@@ -184,3 +184,25 @@ This materializes:
 - `reports/validation.md`
 
 The RH-08 path is read-only with respect to the mounted upstream artifacts. It reuses the mounted baseline lane for deterministic sampled realized-V2 sanity checks, replays explicit toy-fixture golden cases for pure-book and hybrid behavior, and carries forward the mounted RH-07 rollup/global validation context into the final `reports/validation.md`.
+
+## RH-10 final review-pack / closeout path
+
+For the compact internal closeout surface on top of the accepted RH-09 study state, start with:
+
+- `reports/review-pack-closeout.md`
+- `artifacts/rh10-review-pack-20260325/FINAL_INTERNAL_DECISION_MEMO_RH10.md`
+- `artifacts/rh10-review-pack-20260325/CLOSEOUT_STATUS_MEMO_RH10.md`
+- `artifacts/rh10-review-pack-20260325/INDEX.md`
+
+These RH-10 documents are compression / review artifacts only. They do not regenerate modeling outputs.
+
+The accepted benchmark-aware reporting outputs they summarize live under:
+- `artifacts/rh09-benchmark-20260325/reporting-root/reports/final-comparison.md`
+- `artifacts/rh09-benchmark-20260325/reporting-root/reports/reconciliation.md`
+- `artifacts/rh09-benchmark-20260325/reporting-root/reports/validation.md`
+- `artifacts/rh09-benchmark-20260325/reporting-root/data/processed/reporting_pack_summary.json`
+
+Review/rerun rule:
+- use the RH-10 pack for internal reading
+- use the isolated RH-09 reporting-root outputs as the accepted evidence surface
+- if the tracked benchmark contract later becomes comparable, rerun `make reporting-pack`; do not invent benchmark values locally
