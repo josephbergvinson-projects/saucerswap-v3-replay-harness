@@ -1,0 +1,76 @@
+{
+  "lane_output_path": "data/processed/lane_3b_hybrid.csv",
+  "summary_path": "data/processed/hybrid_summary.json",
+  "manifest_path": "data/processed/hybrid_manifest.json",
+  "row_counts": {
+    "pure_book_input_rows": 7255957,
+    "v2_baseline_input_rows": 7255957,
+    "hybrid_rows": 7255957,
+    "buy_rows": 3770999,
+    "sell_rows": 3484958
+  },
+  "completion": {
+    "full_fill_rows": 7254843,
+    "partial_fill_rows": 1114,
+    "zero_fill_rows": 0,
+    "avg_completion_ratio": 0.999925922904,
+    "hybrid_full_fill_from_backstop_rows": 27484
+  },
+  "admissibility": {
+    "rows_with_residual": 28789,
+    "rows_without_residual": 7227168,
+    "backstop_quote_recovered_rows": 28789,
+    "backstop_quote_missing_rows": 0,
+    "pass_rows": 27885,
+    "fail_rows": 904,
+    "pass_rate_on_residual_rows": 0.968599117719
+  },
+  "route_breakdown": {
+    "pure_book_only_rows": 7228072,
+    "routed_rows": 27885,
+    "unrouted_residual_rows": 904,
+    "available_size_limited_rows": 0,
+    "pure_book_size_hbar": "23613619055.756320953369",
+    "v2_backstop_size_hbar": "178402040.911932855844"
+  },
+  "slippage_bps": {
+    "avg": 2.261091936527,
+    "avg_abs": 2.262110997593,
+    "min": -272.454031947806,
+    "max": 49.99014358932,
+    "finite_rows": 7255957,
+    "infinite_rows": 0,
+    "excluded_zero_fill_rows": 0,
+    "positive_rows": 7255913,
+    "negative_rows": 44,
+    "zero_rows": 0
+  },
+  "fees": {
+    "fee_methodology": "phase-0 fee policy keeps headline comparisons fee-aware, but 3B does not yet define a separate synthetic or blended fee model; the lane records fees_paid as 0.0 and preserves RH-03 fee_covered visibility instead of inventing per-replay-unit hybrid fee precision",
+    "fee_precision": "no_synthetic_or_blended_fee_model",
+    "fee_covered_rows": 3892143,
+    "fee_missing_rows": 3363814,
+    "precise_fee_rows": 0,
+    "policy": {
+      "include_fees_in_headline": true,
+      "headline_metric_basis": "requested_notional",
+      "filled_only_metrics": "supplemental_only",
+      "source_fee_treatment": "historical_when_available",
+      "missing_fee_policy": "flag_and_continue",
+      "impute_missing_fees": false
+    },
+    "caveat": "3B has no separate synthetic or blended fee model in the current Phase 0 config. Lane records set fees_paid to 0.0 and preserve fee_covered visibility from RH-03 instead of allocating ungrounded per-replay-unit hybrid fees."
+  },
+  "reconciliation": {
+    "raw_count": 7255957,
+    "normalized_count": 7255957,
+    "counts_match": true,
+    "hybrid_count": 7255957,
+    "hybrid_count_matches_pure_book": true,
+    "hybrid_count_matches_v2_baseline": true,
+    "input_alignment_verified": true,
+    "filled_plus_remainder_matches_requested_size": true,
+    "no_overfill_rows": true,
+    "overfill_rows": 0
+  }
+}

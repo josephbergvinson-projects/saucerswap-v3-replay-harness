@@ -68,8 +68,8 @@ These assumptions are frozen for the first-pass study unless they are explicitly
 
 - 3B requires a recoverable historical V2 residual quote before any backstop routing is allowed.
 - The first-pass admissibility proxy is a symmetric `50 bps` maximum realized slippage allowance versus the replay-unit reference price.
-- Buy-side residuals may route to V2 only if realized slippage versus the reference price is less than or equal to `50 bps`.
-- Sell-side residuals may route to V2 only if realized slippage versus the reference price is less than or equal to `50 bps`.
+- Buy-side residuals may route to V2 only if the projected hybrid average execution price after the mounted 3A fill plus candidate residual route is less than or equal to `50 bps` worse than the reference price.
+- Sell-side residuals may route to V2 only if the projected hybrid average execution price after the mounted 3A fill plus candidate residual route is less than or equal to `50 bps` worse than the reference price.
 - If admissibility fails, or no qualifying residual quote is recoverable, the residual remains unfilled.
 - Under the event-level contract, residual means the remainder of the observed event-level replay unit, not a recovered multi-event user order.
 - This rule is an explicit study-owned first-pass proxy. It is not a claim about canonical product behavior and may be replaced later if a higher-fidelity historical admissibility recovery path is found.

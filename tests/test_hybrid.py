@@ -34,9 +34,20 @@ class HybridSimulationTests(unittest.TestCase):
         self.assertGreater(record.remainder_size, 0.0)
         self.assertLess(record.completion_ratio, 1.0)
 
-    def test_hybrid_does_not_route_when_not_admissible_or_quote_missing(self):
+    def test_hybrid_routes_when_blended_execution_passes_even_if_quote_alone_does_not(self):
         levels = allocate_depth(1000.0, [(2, 1)])
         unit = ReplayUnit('u3', 't', 'tx', 3, 'buy', 20.0, 2000.0, 100.0)
+        quote = ResidualQuote(execution_price=100.8, available_size=20.0)
+
+        record = simulate_hybrid(unit, levels, quote, max_slippage_bps=50)
+
+        self.assertTrue(record.admissibility_passed)
+        self.assertIn('v2_backstop', record.route_breakdown)
+        self.assertGreater(record.completion_ratio, 0.99)
+
+    def test_hybrid_does_not_route_when_not_admissible_or_quote_missing(self):
+        levels = allocate_depth(1000.0, [(2, 1)])
+        unit = ReplayUnit('u4', 't', 'tx', 4, 'buy', 20.0, 2000.0, 100.0)
         bad_quote = ResidualQuote(execution_price=101.0, available_size=20.0)
 
         rejected = simulate_hybrid(unit, levels, bad_quote, max_slippage_bps=50)
@@ -240,7 +251,7 @@ class HybridPipelineTests(unittest.TestCase):
             self.assertEqual(len(first_lane_rows), 4)
 
             routed_limited = first_lane_rows[0]
-            rejected = first_lane_rows[1]
+            routed_blended = first_lane_rows[1]
             no_residual = first_lane_rows[2]
             routed_full = first_lane_rows[3]
 
@@ -256,10 +267,13 @@ class HybridPipelineTests(unittest.TestCase):
             self.assertEqual(routed_limited['completion_ratio'], '0.7')
             self.assertEqual(routed_limited['remainder_size'], '3')
 
-            self.assertEqual(rejected['admissibility_passed'], 'false')
-            self.assertEqual(json.loads(rejected['route_breakdown']), {'pure_book': 6.0})
-            self.assertEqual(rejected['completion_ratio'], '0.6')
-            self.assertEqual(rejected['remainder_size'], '4')
+            self.assertEqual(routed_blended['admissibility_passed'], 'true')
+            self.assertEqual(
+                json.loads(routed_blended['route_breakdown']),
+                {'pure_book': 6.0, 'v2_backstop': 4.0},
+            )
+            self.assertEqual(routed_blended['completion_ratio'], '1')
+            self.assertEqual(routed_blended['remainder_size'], '0')
 
             self.assertEqual(no_residual['admissibility_passed'], '')
             self.assertEqual(json.loads(no_residual['route_breakdown']), {'pure_book': 8.0})
@@ -275,22 +289,22 @@ class HybridPipelineTests(unittest.TestCase):
             self.assertEqual(summary['row_counts']['hybrid_rows'], 4)
             self.assertEqual(summary['row_counts']['buy_rows'], 3)
             self.assertEqual(summary['row_counts']['sell_rows'], 1)
-            self.assertEqual(summary['completion']['full_fill_rows'], 2)
-            self.assertEqual(summary['completion']['partial_fill_rows'], 2)
+            self.assertEqual(summary['completion']['full_fill_rows'], 3)
+            self.assertEqual(summary['completion']['partial_fill_rows'], 1)
             self.assertEqual(summary['completion']['zero_fill_rows'], 0)
-            self.assertEqual(summary['completion']['hybrid_full_fill_from_backstop_rows'], 1)
+            self.assertEqual(summary['completion']['hybrid_full_fill_from_backstop_rows'], 2)
             self.assertEqual(summary['admissibility']['rows_with_residual'], 3)
             self.assertEqual(summary['admissibility']['rows_without_residual'], 1)
             self.assertEqual(summary['admissibility']['backstop_quote_recovered_rows'], 3)
             self.assertEqual(summary['admissibility']['backstop_quote_missing_rows'], 0)
-            self.assertEqual(summary['admissibility']['pass_rows'], 2)
-            self.assertEqual(summary['admissibility']['fail_rows'], 1)
-            self.assertAlmostEqual(summary['admissibility']['pass_rate_on_residual_rows'], 2 / 3)
-            self.assertEqual(summary['route_breakdown']['routed_rows'], 2)
-            self.assertEqual(summary['route_breakdown']['pure_book_only_rows'], 2)
-            self.assertEqual(summary['route_breakdown']['unrouted_residual_rows'], 1)
+            self.assertEqual(summary['admissibility']['pass_rows'], 3)
+            self.assertEqual(summary['admissibility']['fail_rows'], 0)
+            self.assertAlmostEqual(summary['admissibility']['pass_rate_on_residual_rows'], 1.0)
+            self.assertEqual(summary['route_breakdown']['routed_rows'], 3)
+            self.assertEqual(summary['route_breakdown']['pure_book_only_rows'], 1)
+            self.assertEqual(summary['route_breakdown']['unrouted_residual_rows'], 0)
             self.assertEqual(summary['route_breakdown']['available_size_limited_rows'], 1)
-            self.assertEqual(summary['route_breakdown']['v2_backstop_size_hbar'], '4')
+            self.assertEqual(summary['route_breakdown']['v2_backstop_size_hbar'], '8')
             self.assertEqual(summary['fees']['fee_missing_rows'], 4)
             self.assertTrue(summary['mapping']['fingerprint'])
             self.assertTrue(summary['mapping']['one_to_one_mapping_verified'])
@@ -301,10 +315,13 @@ class HybridPipelineTests(unittest.TestCase):
 
             self.assertEqual(manifest['mapping']['row_count'], 4)
             self.assertTrue(manifest['mapping']['one_to_one_mapping_verified'])
-            self.assertEqual(manifest['route_breakdown']['routed_rows'], 2)
-            self.assertEqual(manifest['admissibility']['fail_rows'], 1)
+            self.assertEqual(manifest['route_breakdown']['routed_rows'], 3)
+            self.assertEqual(manifest['admissibility']['fail_rows'], 0)
             self.assertTrue(
-                any('does not force completion to 1.0' in caveat for caveat in manifest['caveats'])
+                any('projected hybrid average execution price' in caveat for caveat in manifest['caveats'])
+            )
+            self.assertTrue(
+                any('recoverable quote size was smaller than the pure-book residual' in caveat for caveat in manifest['caveats'])
             )
             self.assertTrue(
                 any('mounted RH-05 pure-book lane' in caveat for caveat in manifest['caveats'])

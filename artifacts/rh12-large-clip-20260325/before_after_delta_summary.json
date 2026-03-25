@@ -1,0 +1,145 @@
+{
+  "aggregate": {
+    "fill_rate": {
+      "before": 0.98770777613,
+      "after": 0.989470558433,
+      "delta": 0.0017627823029999767
+    },
+    "avg_completion_ratio": {
+      "before": 0.999901267765,
+      "after": 0.999925922904,
+      "delta": 2.4655138999962745e-05
+    },
+    "avg_slippage_bps": {
+      "before": 2.260514999438,
+      "after": 2.261091936527,
+      "delta": 0.0005769370889998626
+    },
+    "avg_abs_slippage_bps": {
+      "before": 2.261534060503,
+      "after": 2.262110997593,
+      "delta": 0.0005769370899999515
+    },
+    "remainder_size_hbar": {
+      "before": 295569026.42833084,
+      "after": 253182566.9233534,
+      "delta": -42386459.504977435
+    },
+    "full_fill_rows": {
+      "before": 7252757.0,
+      "after": 7254843.0,
+      "delta": 2086.0
+    },
+    "partial_fill_rows": {
+      "before": 3200.0,
+      "after": 1114.0,
+      "delta": -2086.0
+    },
+    "admissibility_pass_rows": {
+      "before": 25780.0,
+      "after": 27885.0,
+      "delta": 2105.0
+    },
+    "admissibility_fail_rows": {
+      "before": 3009.0,
+      "after": 904.0,
+      "delta": -2105.0
+    }
+  },
+  "segments": {
+    "10k-25k": {
+      "fill_rate": {
+        "before": 0.994271699167,
+        "after": 0.999085179852,
+        "delta": 0.004813480684999982
+      },
+      "avg_completion_ratio": {
+        "before": 0.997076310936,
+        "after": 0.999562502701,
+        "delta": 0.0024861917649999787
+      },
+      "avg_slippage_bps": {
+        "before": 24.378361137233,
+        "after": 24.467398459587,
+        "delta": 0.08903732235399886
+      },
+      "avg_abs_slippage_bps": {
+        "before": 24.412866479341,
+        "after": 24.501903801695,
+        "delta": 0.08903732235399886
+      },
+      "remainder_size_hbar": {
+        "before": 5077348.017648207,
+        "after": 810861.7892270057,
+        "delta": -4266486.228421201
+      },
+      "full_fill_rows": {
+        "before": 9194.0,
+        "after": 9710.0,
+        "delta": 516.0
+      },
+      "partial_fill_rows": {
+        "before": 540.0,
+        "after": 24.0,
+        "delta": -516.0
+      },
+      "admissibility_pass_rows": {
+        "before": 2168.0,
+        "after": 2684.0,
+        "delta": 516.0
+      },
+      "admissibility_fail_rows": {
+        "before": 540.0,
+        "after": 24.0,
+        "delta": -516.0
+      }
+    },
+    "25k+": {
+      "fill_rate": {
+        "before": 0.598377402399,
+        "after": 0.651080608121,
+        "delta": 0.052703205722000046
+      },
+      "avg_completion_ratio": {
+        "before": 0.739417552154,
+        "after": 0.798014535901,
+        "delta": 0.058596983747000064
+      },
+      "avg_slippage_bps": {
+        "before": 34.042999540549,
+        "after": 35.300401592967,
+        "delta": 1.2574020524180014
+      },
+      "avg_abs_slippage_bps": {
+        "before": 36.716631461247,
+        "after": 37.974033513665,
+        "delta": 1.2574020524180014
+      },
+      "remainder_size_hbar": {
+        "before": 290491678.4106826,
+        "after": 252371705.13412634,
+        "delta": -38119973.27655628
+      },
+      "full_fill_rows": {
+        "before": 1343.0,
+        "after": 1749.0,
+        "delta": 406.0
+      },
+      "partial_fill_rows": {
+        "before": 1297.0,
+        "after": 891.0,
+        "delta": -406.0
+      },
+      "admissibility_pass_rows": {
+        "before": 1353.0,
+        "after": 1760.0,
+        "delta": 407.0
+      },
+      "admissibility_fail_rows": {
+        "before": 1287.0,
+        "after": 880.0,
+        "delta": -407.0
+      }
+    }
+  }
+}

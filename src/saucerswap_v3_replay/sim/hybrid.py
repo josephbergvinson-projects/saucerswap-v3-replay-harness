@@ -172,6 +172,21 @@ class HybridAlignmentState:
     row_number: int
 
 
+def projected_hybrid_execution_price(
+    *,
+    pure_fill_size: float,
+    pure_fill_notional: float,
+    routed_size: float,
+    routed_execution_price: float,
+    reference_price: float,
+) -> float:
+    total_size = pure_fill_size + routed_size
+    if total_size <= 0:
+        return reference_price
+    return (pure_fill_notional + routed_size * routed_execution_price) / total_size
+
+
+
 def simulate_hybrid(
     unit: ReplayUnit,
     levels: list[BookLevel],
@@ -187,15 +202,22 @@ def simulate_hybrid(
     if book_fill.remainder_size > 0:
         admissibility_passed = False
         if residual_quote is not None:
-            admissibility_passed = passes_slippage_cap(
-                side=unit.side,
-                reference_price=unit.reference_price,
-                execution_price=residual_quote.execution_price,
-                max_slippage_bps=max_slippage_bps,
-            )
-            if admissibility_passed:
-                routed_size = min(book_fill.remainder_size, residual_quote.available_size)
-                if routed_size > 0:
+            routed_size = min(book_fill.remainder_size, residual_quote.available_size)
+            if routed_size > 0:
+                projected_execution_price = projected_hybrid_execution_price(
+                    pure_fill_size=book_fill.filled_size,
+                    pure_fill_notional=book_fill.filled_notional,
+                    routed_size=routed_size,
+                    routed_execution_price=residual_quote.execution_price,
+                    reference_price=unit.reference_price,
+                )
+                admissibility_passed = passes_slippage_cap(
+                    side=unit.side,
+                    reference_price=unit.reference_price,
+                    execution_price=projected_execution_price,
+                    max_slippage_bps=max_slippage_bps,
+                )
+                if admissibility_passed:
                     filled_size += routed_size
                     weighted_notional += routed_size * residual_quote.execution_price
                     route_breakdown['v2_backstop'] = routed_size
@@ -432,19 +454,29 @@ def hybrid_record_from_mounted_rows(
     admissibility_passed = None
 
     if pure_book_row.remainder_size > 0:
+        routed_size = 0.0
+        projected_execution_price = None
+        if residual_quote is not None:
+            routed_size = min(pure_book_row.remainder_size, residual_quote.available_size)
+            if routed_size > 0:
+                projected_execution_price = projected_hybrid_execution_price(
+                    pure_fill_size=pure_book_row.filled_size,
+                    pure_fill_notional=pure_book_row.filled_notional,
+                    routed_size=routed_size,
+                    routed_execution_price=residual_quote.execution_price,
+                    reference_price=pure_book_row.reference_price,
+                )
         admissibility_passed = passes_hybrid_admissibility(
             rule,
             side=pure_book_row.side,
             reference_price=pure_book_row.reference_price,
-            execution_price=None if residual_quote is None else residual_quote.execution_price,
+            execution_price=projected_execution_price,
             quote_available=residual_quote is not None,
         )
-        if admissibility_passed and residual_quote is not None:
-            routed_size = min(pure_book_row.remainder_size, residual_quote.available_size)
-            if routed_size > 0:
-                filled_size += routed_size
-                filled_notional += routed_size * residual_quote.execution_price
-                route_breakdown['v2_backstop'] = routed_size
+        if admissibility_passed and residual_quote is not None and routed_size > 0:
+            filled_size += routed_size
+            filled_notional += routed_size * residual_quote.execution_price
+            route_breakdown['v2_backstop'] = routed_size
 
     avg_execution_price = filled_notional / filled_size if filled_size else pure_book_row.reference_price
     overfill = filled_size - pure_book_row.requested_size
@@ -637,7 +669,7 @@ def build_summary(
             'book_fill_basis': 'mounted_3a_pure_book_fill',
             'residual_basis': 'event_level_pure_book_remainder',
             'backstop_quote_basis': 'mounted_v2_realized_execution_price',
-            'backstop_route_policy': 'route_residual_only_when_frozen_admissibility_rule_passes',
+            'backstop_route_policy': 'route_residual_only_when_projected_hybrid_slippage_passes',
             'completion_basis': 'filled_size_over_requested_size',
             'slippage_basis': 'reference_price',
             'fee_treatment': 'no_synthetic_or_blended_fee_model_flag_and_continue',
@@ -809,10 +841,12 @@ def build_caveats(stats: HybridStats, hybrid_rule: HybridRule) -> list[str]:
         'Under the event-level contract, residual means the remainder of the event-level replay unit '
         'after the mounted 3A pure-book fill; it is not a recovered multi-event user-order residual.',
         'The mounted V2 baseline supplies a recoverable historical V2 proxy quote per replay unit. '
-        '3B only routes residual size to that backstop when the frozen admissibility rule passes.',
+        '3B only routes residual size to that backstop when the frozen admissibility rule passes on the '
+        'projected hybrid average execution price after the mounted 3A fill plus candidate routed residual.',
         f'The frozen first-pass admissibility rule uses buy={format_decimal(hybrid_rule.max_buy_slippage_bps)} '
         f'bps and sell={format_decimal(hybrid_rule.max_sell_slippage_bps)} bps maximum realized slippage '
-        'versus the replay-unit reference price.',
+        'versus the replay-unit reference price, evaluated on the projected hybrid average execution price '
+        'rather than the raw backstop quote in isolation.',
     ]
     if stats.unrouted_residual_rows > 0:
         caveats.append(

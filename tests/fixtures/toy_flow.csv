@@ -1,4 +1,4 @@
 case_name,lane,replay_unit_id,timestamp,tx_id,event_index,side,requested_size,requested_notional,reference_price,v2_execution_price,v2_available_size
 pure_book_partial_fill,3a_pure_book,u1,2026-01-01T00:00:00Z,tx1,1,buy,250,25000,100,,
-hybrid_admissibility_fail,3b_hybrid,u2,2026-01-01T00:01:00Z,tx2,1,sell,250,25000,100,99,100
+hybrid_admissibility_fail,3b_hybrid,u2,2026-01-01T00:01:00Z,tx2,1,sell,250,25000,100,96,100
 hybrid_admissibility_pass,3b_hybrid,u3,2026-01-01T00:02:00Z,tx3,1,buy,250,25000,100,100.3,60

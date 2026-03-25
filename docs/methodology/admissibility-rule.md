@@ -6,8 +6,8 @@ The hybrid lane routes residual size to historical V2 only when the lane's admis
 
 - A recoverable historical V2 residual quote is required before any residual may route.
 - The first-pass proxy uses a symmetric `50 bps` maximum realized slippage allowance versus the replay-unit reference price.
-- Buy-side residual may route to V2 only if realized slippage versus the replay-unit reference price is less than or equal to `50 bps`.
-- Sell-side residual may route to V2 only if realized slippage versus the replay-unit reference price is less than or equal to `50 bps`.
+- Buy-side residual may route to V2 only if the projected hybrid average execution price after the mounted 3A fill plus candidate residual route is less than or equal to `50 bps` worse than the replay-unit reference price.
+- Sell-side residual may route to V2 only if the projected hybrid average execution price after the mounted 3A fill plus candidate residual route is less than or equal to `50 bps` worse than the replay-unit reference price.
 - If the quote is missing or the admissibility test fails, the residual remains unfilled.
 
 ## Design goal

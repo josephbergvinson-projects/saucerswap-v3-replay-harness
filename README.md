@@ -142,7 +142,9 @@ This materializes:
 - `data/processed/hybrid_summary.json`
 - `data/processed/hybrid_manifest.json`
 
-The 3B path treats `data/processed/lane_3a_pure_book.csv` and `data/processed/lane_v2_baseline.csv` as mounted read-only inputs, preserves one replay unit to one hybrid execution record, and only routes the RH-05 residual remainder to the V2 backstop when the frozen rule in `config/hybrid_rule.yaml` passes. If a residual cannot route, `completion_ratio` and `remainder_size` stay completion-aware rather than forcing a full fill.
+The 3B path treats `data/processed/lane_3a_pure_book.csv` and `data/processed/lane_v2_baseline.csv` as mounted read-only inputs, preserves one replay unit to one hybrid execution record, and only routes the RH-05 residual remainder to the V2 backstop when the frozen rule in `config/hybrid_rule.yaml` passes on the projected hybrid average execution price. If a residual cannot route, `completion_ratio` and `remainder_size` stay completion-aware rather than forcing a full fill.
+
+For branch-local modeling slices that would otherwise write through mounted upstream outputs, stage an isolated rerun root and pass it with `--root`. The RH-12 large-clip pass uses `python3 artifacts/rh12-large-clip-20260325/prepare_rerun_root.py` to refresh `artifacts/rh12-large-clip-20260325/rerun-root/` before rerunning hybrid/reporting there.
 
 ## Reporting-pack rerun
 

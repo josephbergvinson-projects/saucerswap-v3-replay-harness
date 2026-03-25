@@ -1,0 +1,87 @@
+{
+  "comparison_aggregate_path": "data/processed/comparison_aggregate.csv",
+  "comparison_by_bucket_path": "data/processed/comparison_by_bucket.csv",
+  "comparison_by_side_path": "data/processed/comparison_by_side.csv",
+  "final_comparison_path": "reports/final-comparison.md",
+  "reconciliation_path": "reports/reconciliation.md",
+  "validation_path": "reports/validation.md",
+  "summary_path": "data/processed/reporting_pack_summary.json",
+  "manifest_path": "data/processed/reporting_pack_manifest.json",
+  "benchmark": {
+    "schema_version": "rh09_lambdaplex_published_panel_v1",
+    "source": "Lambdaplex published benchmark panel",
+    "market": "HBAR/USDC",
+    "status": "incomplete",
+    "comparable": false,
+    "source_notes_path": "benchmarks/lambdaplex/source-notes.md",
+    "headline_metrics": {
+      "reported_average_amm_slippage_bps": 15.47,
+      "reported_grid_strategy_slippage_bps": 2.82,
+      "reported_claim_scope": "slide-reported published benchmark figures captured for provenance only"
+    },
+    "comparable_headline_metrics": {},
+    "provenance": {
+      "local_payload_state": "reported_partial_slide_metrics_only",
+      "local_payload_complete": false,
+      "blocking_reason": "The locally captured Lambdaplex slide values disclose only partial slippage figures and do not provide the required comparable fields or enough methodological detail to map into comparable_headline_metrics.",
+      "captured_artifacts": [
+        "benchmarks/lambdaplex/published-results.json",
+        "benchmarks/lambdaplex/source-notes.md",
+        "operator-provided Lambdaplex slide screenshots (2026-03-25)"
+      ],
+      "mapping_notes": [
+        "Only comparable_headline_metrics are eligible for merge into reporting outputs.",
+        "The slide-reported 15.47 / 2.82 values are stored as raw headline_metrics provenance only.",
+        "Required comparable fields still missing locally: fill_rate, avg_completion_ratio, avg_abs_slippage_bps, remainder_size_hbar.",
+        "Weighting basis, reference-price convention, fee treatment, and completion/failure treatment are not disclosed well enough to normalize the slide values into the study schema."
+      ]
+    },
+    "notes": [
+      "Populate comparable_headline_metrics only from locally tracked published Lambdaplex outputs with explicit mapping support.",
+      "Do not treat the slide-reported 15.47 / 2.82 bps figures as apples-to-apples comparable with the study rollups yet.",
+      "Do not invent benchmark values when rerunning reporting-pack."
+    ]
+  },
+  "validation": {
+    "lanes": [
+      {
+        "lane": "v2_realized",
+        "lane_label": "V2 baseline",
+        "row_count_matches": "true",
+        "requested_totals_match": "true",
+        "filled_totals_match": "true",
+        "completion_counts_match": "true",
+        "fee_coverage_match": "true",
+        "status": "pass"
+      },
+      {
+        "lane": "3a_pure_book",
+        "lane_label": "3A pure-book",
+        "row_count_matches": "true",
+        "requested_totals_match": "true",
+        "filled_totals_match": "true",
+        "completion_counts_match": "true",
+        "fee_coverage_match": "true",
+        "status": "pass"
+      },
+      {
+        "lane": "3b_hybrid",
+        "lane_label": "3B hybrid",
+        "row_count_matches": "true",
+        "requested_totals_match": "true",
+        "filled_totals_match": "true",
+        "completion_counts_match": "true",
+        "fee_coverage_match": "true",
+        "status": "pass"
+      }
+    ],
+    "global_checks": [
+      "Lane order fixed to: V2 baseline, 3A pure-book, 3B hybrid.",
+      "Side split enabled in config/reporting.yaml: true.",
+      "Bucket split enabled in config/reporting.yaml: true.",
+      "Bucket basis from config/buckets.yaml: `requested_notional` with semantics `lower_inclusive_upper_exclusive_except_last`.",
+      "All direct lane rollups matched mounted lane summaries: true.",
+      "Lambdaplex published panel status is `incomplete`; no comparable benchmark metrics were merged. Provenance: local_payload_state=reported_partial_slide_metrics_only | local_payload_complete=false | The locally captured Lambdaplex slide values disclose only partial slippage figures and do not provide the required comparable fields or enough methodological detail to map into comparable_headline_metrics. | mapping_notes=Only comparable_headline_metrics are eligible for merge into reporting outputs.; The slide-reported 15.47 / 2.82 values are stored as raw headline_metrics provenance only.; Required comparable fields still missing locally: fill_rate, avg_completion_ratio, avg_abs_slippage_bps, remainder_size_hbar.; Weighting basis, reference-price convention, fee treatment, and completion/failure treatment are not disclosed well enough to normalize the slide values into the study schema. | captured_artifacts=benchmarks/lambdaplex/published-results.json, benchmarks/lambdaplex/source-notes.md, operator-provided Lambdaplex slide screenshots (2026-03-25)."
+    ]
+  }
+}
