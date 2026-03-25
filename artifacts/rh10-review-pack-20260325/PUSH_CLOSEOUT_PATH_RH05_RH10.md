@@ -9,7 +9,7 @@
 | RH-07 | `feat/ssv3-rh07-reporting-pack` @ `763f06a` | `docs: add RH-07 reviewer memo` | `00761a7` | Review |
 | RH-08 | `feat/ssv3-rh08-validation-polish` @ `abe9394` | `docs: add RH-08 reviewer memo` | `01ace26` | Review |
 | RH-09 | `feat/ssv3-rh09-lambdaplex-benchmark-panel` @ `bd4c8f5` | `docs: add RH-09 review memos` | `d78c852` | Review |
-| RH-10 | `feat/ssv3-rh10-review-pack-closeout` @ `51400d1` | `docs: add RH-10 reviewer and closeout notes` | `184c0b4` | Review |
+| RH-10 | `feat/ssv3-rh10-review-pack-closeout` @ `27c44b9` | `docs: add RH-10 post-push review plan` | `184c0b4` | Review |
 
 ## Recommended push strategy
 
@@ -104,3 +104,4 @@ These are study blockers, not branch-prep blockers:
 ## Ready state
 
 The local branch stack is ready for push preparation. No further technical implementation is required before a supervised publication/review pass.
+ss.
