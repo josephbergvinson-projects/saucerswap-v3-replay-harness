@@ -6,7 +6,7 @@ This study replays 7,255,957 historical WHBAR/USDC V2 events against two synthet
 
 Both synthetic scenarios materially improve price quality versus V2. The book-only scenario reduces average study slippage from 19.97 bps to 2.26 bps, but leaves too much large-order flow incomplete. The hybrid scenario preserves essentially the same slippage while improving full-fill rate from 98.21% to 98.95% overall and from 42.16% to 65.11% in the $25k+ bucket. That makes hybrid the best overall result in this study.
 
-Lambdaplex is relevant only as an external benchmark. Its published panel is useful for directional context, but it is not fully normalized into the same schema across completion, weighting, fee treatment, or methodology.
+Lambdaplex is relevant only as an external benchmark. Its published panel is useful for directional context, but it is not fully normalized into the same schema across completion, weighting, fee treatment, or methodology, and it cannot be normalized further from public materials because the study does not disclose enough detail about its weighting, completion logic, fee handling, or benchmark construction.
 
 ## Decision rule
 
