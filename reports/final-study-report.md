@@ -70,7 +70,7 @@ Other headline metrics:
 
 - **Full-fill rate** = share of replay units fully completed.
 - **Avg completion** = average filled share of requested size across replay units.
-- **Remainder** = total unfilled HBAR volume left on the table.
+- **Remainder** = total unfilled HBAR volume left on the table, computed as the aggregate requested HBAR minus filled HBAR across replay events. It is an absolute leftover amount, not a percentage.
 
 Unless otherwise noted, average metrics in the study tables are simple row-weighted averages over replay units. The cost section later is secondary and uses filled-notional-based implied slippage cost.
 
