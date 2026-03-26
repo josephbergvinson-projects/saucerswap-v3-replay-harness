@@ -17,6 +17,8 @@ This repository is the standalone source tree for the replay study harness. It i
 - Frozen planning source: `docs/planning/replay-study-plan-locked.md`
 - Replay contract amendment: `docs/methodology/replay-contract.md`
 - Phase 0 methodology lock: `docs/methodology/phase-0-lock.md`
+- Colleague-facing final report: `reports/final-study-report.md`
+- Refreshed comparison outputs: `reports/final-comparison.md`, `reports/validation.md`, `reports/reconciliation.md`
 
 ## Project layout
 
