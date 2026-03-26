@@ -169,7 +169,6 @@ The study supports three clear conclusions:
 2. **Book-only is not enough for large clips.** It leaves too much high-notional flow incomplete.
 3. **Hybrid is the best overall internal result.** It preserves the slippage gain while materially improving completion and reducing remainder versus book-only.
 
-That is the central claim the report should carry to colleagues.
 
 ## Appendix A — Benchmark provenance and output paths
 
