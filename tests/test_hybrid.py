@@ -266,6 +266,8 @@ class HybridPipelineTests(unittest.TestCase):
             self.assertEqual(json.loads(routed_limited['route_breakdown']), {'pure_book': 5.0, 'v2_backstop': 2.0})
             self.assertEqual(routed_limited['completion_ratio'], '0.7')
             self.assertEqual(routed_limited['remainder_size'], '3')
+            self.assertEqual(routed_limited['amm_pre_trade_spot_reference_price'], '100')
+            self.assertNotEqual(routed_limited['amm_pre_trade_spot_gross_slippage_bps'], '')
 
             self.assertEqual(routed_blended['admissibility_passed'], 'true')
             self.assertEqual(
@@ -306,6 +308,8 @@ class HybridPipelineTests(unittest.TestCase):
             self.assertEqual(summary['route_breakdown']['available_size_limited_rows'], 1)
             self.assertEqual(summary['route_breakdown']['v2_backstop_size_hbar'], '8')
             self.assertEqual(summary['fees']['fee_missing_rows'], 4)
+            self.assertEqual(summary['amm_pre_trade_spot_gross_slippage_bps']['supported_rows'], 4)
+            self.assertEqual(summary['coverage']['amm_pre_trade_spot_reference_supported_rows'], 4)
             self.assertTrue(summary['mapping']['fingerprint'])
             self.assertTrue(summary['mapping']['one_to_one_mapping_verified'])
             self.assertTrue(summary['reconciliation']['counts_match'])
@@ -340,8 +344,10 @@ class HybridPipelineTests(unittest.TestCase):
             'filled_notional': '1000',
             'completion_ratio': '1',
             'reference_price': '100',
+            'amm_pre_trade_spot_reference_price': '100',
             'avg_execution_price': '100',
             'execution_slippage_bps': '0',
+            'amm_pre_trade_spot_gross_slippage_bps': '0',
             'fees_paid': '0',
             'fee_methodology': 'pure-book test',
             'fee_precision': 'no_synthetic_fee_model',
@@ -385,8 +391,10 @@ class HybridPipelineTests(unittest.TestCase):
             'filled_notional': '1000',
             'completion_ratio': '1',
             'reference_price': '100',
+            'amm_pre_trade_spot_reference_price': '100',
             'avg_execution_price': '100',
             'realized_slippage_bps': '0',
+            'amm_pre_trade_spot_gross_slippage_bps': '0',
             'fees_paid': '0',
             'fee_methodology': 'baseline test',
             'fee_precision': 'not_allocated_per_replay_unit',

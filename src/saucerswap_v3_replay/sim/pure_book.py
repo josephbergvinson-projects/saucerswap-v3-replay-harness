@@ -13,10 +13,16 @@ from ..baseline.v2_realized import (
     _require_inputs,
     average,
     context_to_timestamp,
+    format_optional_decimal,
     iter_aligned_event_rows,
     utc_now,
 )
-from ..metrics.core import completion_ratio, slippage_bps
+from ..metrics.core import (
+    completion_ratio,
+    reconstruct_amm_pre_trade_spot_reference,
+    slippage_bps,
+    symmetric_reference_denominator_bps,
+)
 from ..normalize.events import format_bool, format_decimal, format_scaled_int
 from ..schema import ExecutionRecord, ReplayUnit
 from ..settings import _load_yaml_payload
@@ -44,8 +50,10 @@ PURE_BOOK_OUTPUT_FIELDNAMES = [
     'filled_notional',
     'completion_ratio',
     'reference_price',
+    'amm_pre_trade_spot_reference_price',
     'avg_execution_price',
     'execution_slippage_bps',
+    'amm_pre_trade_spot_gross_slippage_bps',
     'fees_paid',
     'fee_methodology',
     'fee_precision',
@@ -92,6 +100,8 @@ class PureBookRow:
     record: ExecutionRecord
     context: ObservedEventContext
     execution_slippage_bps: float
+    amm_pre_trade_spot_reference_price: float | None
+    amm_pre_trade_spot_gross_slippage_bps: float | None
     replay_projection_verified: bool = True
 
 
@@ -128,6 +138,14 @@ class PureBookStats:
     slippage_positive_rows: int = 0
     slippage_negative_rows: int = 0
     slippage_zero_rows: int = 0
+    amm_pre_trade_spot_supported_rows: int = 0
+    amm_pre_trade_spot_missing_rows: int = 0
+    amm_pre_trade_spot_slippage_sum_bps: float = 0.0
+    amm_pre_trade_spot_slippage_abs_sum_bps: float = 0.0
+    amm_pre_trade_spot_finite_slippage_rows: int = 0
+    amm_pre_trade_spot_infinite_slippage_rows: int = 0
+    amm_pre_trade_spot_slippage_min_bps: float | None = None
+    amm_pre_trade_spot_slippage_max_bps: float | None = None
     overfill_rows: int = 0
     first_replay_unit_id: str | None = None
     last_replay_unit_id: str | None = None
@@ -226,13 +244,31 @@ def build_pure_book_row(
     replay_projection_verified: bool = True,
 ) -> PureBookRow:
     record = simulate_pure_book(unit, levels)
+    amm_pre_trade_spot_reference = reconstruct_amm_pre_trade_spot_reference(
+        side=unit.side,
+        sqrt_ratio_x96=context.sqrt_ratio_x96,
+        liquidity=context.liquidity,
+        amount_a=context.amount_a,
+        amount_b=context.amount_b,
+    )
     execution_slippage = 0.0
+    amm_pre_trade_spot_gross_slippage = None
     if record.filled_size > 0:
         execution_slippage = slippage_bps(unit.reference_price, record.avg_execution_price, unit.side)
+        if amm_pre_trade_spot_reference is not None:
+            amm_pre_trade_spot_gross_slippage = symmetric_reference_denominator_bps(
+                amm_pre_trade_spot_reference.pre_trade_spot_price,
+                record.avg_execution_price,
+                unit.side,
+            )
     return PureBookRow(
         record=record,
         context=context,
         execution_slippage_bps=execution_slippage,
+        amm_pre_trade_spot_reference_price=(
+            None if amm_pre_trade_spot_reference is None else amm_pre_trade_spot_reference.pre_trade_spot_price
+        ),
+        amm_pre_trade_spot_gross_slippage_bps=amm_pre_trade_spot_gross_slippage,
         replay_projection_verified=replay_projection_verified,
     )
 
@@ -338,8 +374,12 @@ def render_pure_book_row(row: PureBookRow) -> dict[str, str]:
         'filled_notional': format_decimal(record.filled_notional),
         'completion_ratio': format_decimal(record.completion_ratio),
         'reference_price': format_decimal(record.reference_price),
+        'amm_pre_trade_spot_reference_price': format_optional_decimal(row.amm_pre_trade_spot_reference_price),
         'avg_execution_price': format_decimal(record.avg_execution_price),
         'execution_slippage_bps': format_decimal(row.execution_slippage_bps),
+        'amm_pre_trade_spot_gross_slippage_bps': format_optional_decimal(
+            row.amm_pre_trade_spot_gross_slippage_bps
+        ),
         'fees_paid': format_decimal(record.fees_paid),
         'fee_methodology': FEE_METHODOLOGY,
         'fee_precision': FEE_PRECISION,
@@ -413,6 +453,11 @@ def update_stats(stats: PureBookStats, row: PureBookRow) -> None:
     else:
         stats.swap_metadata_missing_rows += 1
 
+    if row.amm_pre_trade_spot_reference_price is None:
+        stats.amm_pre_trade_spot_missing_rows += 1
+    else:
+        stats.amm_pre_trade_spot_supported_rows += 1
+
     if record.filled_size <= 0:
         stats.slippage_excluded_zero_fill_rows += 1
         return
@@ -434,6 +479,26 @@ def update_stats(stats: PureBookStats, row: PureBookRow) -> None:
             stats.slippage_max_bps = row.execution_slippage_bps
     else:
         stats.infinite_slippage_rows += 1
+
+    if row.amm_pre_trade_spot_gross_slippage_bps is None:
+        return
+
+    if math.isfinite(row.amm_pre_trade_spot_gross_slippage_bps):
+        stats.amm_pre_trade_spot_finite_slippage_rows += 1
+        stats.amm_pre_trade_spot_slippage_sum_bps += row.amm_pre_trade_spot_gross_slippage_bps
+        stats.amm_pre_trade_spot_slippage_abs_sum_bps += abs(row.amm_pre_trade_spot_gross_slippage_bps)
+        if (
+            stats.amm_pre_trade_spot_slippage_min_bps is None
+            or row.amm_pre_trade_spot_gross_slippage_bps < stats.amm_pre_trade_spot_slippage_min_bps
+        ):
+            stats.amm_pre_trade_spot_slippage_min_bps = row.amm_pre_trade_spot_gross_slippage_bps
+        if (
+            stats.amm_pre_trade_spot_slippage_max_bps is None
+            or row.amm_pre_trade_spot_gross_slippage_bps > stats.amm_pre_trade_spot_slippage_max_bps
+        ):
+            stats.amm_pre_trade_spot_slippage_max_bps = row.amm_pre_trade_spot_gross_slippage_bps
+    else:
+        stats.amm_pre_trade_spot_infinite_slippage_rows += 1
 
 
 def build_summary(
@@ -459,6 +524,10 @@ def build_summary(
             'book_fill_basis': 'requested_size',
             'book_reset': 'per_replay_unit',
             'slippage_basis': 'reference_price',
+            'lambdaplex_parity_proxy_basis': (
+                'amm_pre_trade_spot_gross_slippage_bps uses the RH-13 best-supported '
+                'AMM pre-trade pool-spot gross convention with a symmetric reference denominator'
+            ),
             'completion_basis': 'filled_size_over_requested_size',
             'fee_treatment': 'no_synthetic_fee_model_flag_and_continue',
         },
@@ -498,6 +567,24 @@ def build_summary(
             'negative_rows': stats.slippage_negative_rows,
             'zero_rows': stats.slippage_zero_rows,
         },
+        'amm_pre_trade_spot_gross_slippage_bps': {
+            'avg': average(stats.amm_pre_trade_spot_slippage_sum_bps, stats.amm_pre_trade_spot_finite_slippage_rows),
+            'avg_abs': average(
+                stats.amm_pre_trade_spot_slippage_abs_sum_bps,
+                stats.amm_pre_trade_spot_finite_slippage_rows,
+            ),
+            'min': round(stats.amm_pre_trade_spot_slippage_min_bps or 0.0, 12),
+            'max': round(stats.amm_pre_trade_spot_slippage_max_bps or 0.0, 12),
+            'finite_rows': stats.amm_pre_trade_spot_finite_slippage_rows,
+            'infinite_rows': stats.amm_pre_trade_spot_infinite_slippage_rows,
+            'supported_rows': stats.amm_pre_trade_spot_supported_rows,
+            'missing_rows': stats.amm_pre_trade_spot_missing_rows,
+            'excluded_zero_fill_rows': stats.slippage_excluded_zero_fill_rows,
+            'reference_basis': 'reconstructed_amm_pre_trade_pool_spot',
+            'execution_basis': 'gross_lane_avg_execution_price',
+            'denominator': 'symmetric_reference_price',
+            'status': 'parity_proxy_only',
+        },
         'totals': {
             'requested_size_hbar': format_scaled_int(stats.requested_size_raw_total, 8),
             'requested_notional_usdc': format_scaled_int(stats.requested_notional_raw_total, 6),
@@ -509,6 +596,8 @@ def build_summary(
             'reference_price_fallback_rows': stats.reference_price_fallback_rows,
             'swap_metadata_covered_rows': stats.swap_metadata_covered_rows,
             'swap_metadata_missing_rows': stats.swap_metadata_missing_rows,
+            'amm_pre_trade_spot_reference_supported_rows': stats.amm_pre_trade_spot_supported_rows,
+            'amm_pre_trade_spot_reference_missing_rows': stats.amm_pre_trade_spot_missing_rows,
         },
         'fees': {
             'fee_methodology': FEE_METHODOLOGY,
@@ -621,6 +710,9 @@ def build_caveats(stats: PureBookStats) -> list[str]:
         'That ladder is a study-owned deterministic assumption, not a reconstruction of live V3 inventory.',
         '3A walks the synthetic ladder against requested_size. requested_notional is preserved from RH-03 '
         'for comparison context and is not forced to match synthetic filled_notional.',
+        'The added `amm_pre_trade_spot_gross_slippage_bps` field is a Lambdaplex-parity proxy only. '
+        'It uses the RH-13 best-supported reconstructed AMM pre-trade pool spot plus a symmetric '
+        'reference denominator and does not replace the canonical reference-price study metric.',
     ]
     not_full_fill_rows = stats.partial_fill_rows + stats.zero_fill_rows
     if not_full_fill_rows > 0:
@@ -644,6 +736,11 @@ def build_caveats(stats: PureBookStats) -> list[str]:
         caveats.append(
             f'{stats.infinite_slippage_rows} replay unit(s) have non-finite slippage and are excluded from finite '
             'slippage averages.'
+        )
+    if stats.amm_pre_trade_spot_missing_rows > 0:
+        caveats.append(
+            f'{stats.amm_pre_trade_spot_missing_rows} replay unit(s) do not have enough raw swap-state '
+            'fields to support the AMM pre-trade spot parity proxy and remain blank for that metric family.'
         )
     return caveats
 

@@ -22,6 +22,8 @@
     "mapping_notes": [
       "Only comparable_headline_metrics are eligible for merge into reporting outputs.",
       "The slide-reported 15.47 / 2.82 values are stored as raw headline_metrics provenance only.",
+      "The harness now also reports a separate `avg_amm_pre_trade_spot_gross_slippage_bps` parity proxy using the RH-13 best-supported reconstructed AMM pre-trade pool-spot gross convention.",
+      "That parity proxy is local study output, not a confirmed Lambdaplex methodological disclosure and not a substitute for comparable_headline_metrics.",
       "Required comparable fields still missing locally: fill_rate, avg_completion_ratio, avg_abs_slippage_bps, remainder_size_hbar.",
       "Weighting basis, reference-price convention, fee treatment, and completion/failure treatment are not disclosed well enough to normalize the slide values into the study schema."
     ]
@@ -29,6 +31,7 @@
   "notes": [
     "Populate comparable_headline_metrics only from locally tracked published Lambdaplex outputs with explicit mapping support.",
     "Do not treat the slide-reported 15.47 / 2.82 bps figures as apples-to-apples comparable with the study rollups yet.",
+    "Use the local `avg_amm_pre_trade_spot_gross_slippage_bps` field only as a best-supported Lambdaplex-parity proxy, not as confirmation of Lambdaplex's undisclosed methodology.",
     "Do not invent benchmark values when rerunning reporting-pack."
   ]
 }

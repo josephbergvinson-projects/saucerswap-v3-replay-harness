@@ -28,6 +28,7 @@ class ReportingPackTests(unittest.TestCase):
                 slippage_bps=2.0,
                 fee_covered=False,
                 admissibility_passed=None,
+                amm_pre_trade_spot_gross_slippage_bps=3.0,
             ),
             LaneObservation(
                 lane='3b_hybrid',
@@ -43,6 +44,7 @@ class ReportingPackTests(unittest.TestCase):
                 slippage_bps=-1.0,
                 fee_covered=True,
                 admissibility_passed=False,
+                amm_pre_trade_spot_gross_slippage_bps=1.0,
             ),
         ]
 
@@ -63,6 +65,7 @@ class ReportingPackTests(unittest.TestCase):
         self.assertAlmostEqual(aggregate.fill_rate, 0.833333333333)
         self.assertAlmostEqual(aggregate.avg_completion_ratio, 0.875)
         self.assertAlmostEqual(aggregate.avg_slippage_bps, 0.5)
+        self.assertAlmostEqual(aggregate.avg_amm_pre_trade_spot_gross_slippage_bps, 2.0)
         self.assertEqual(by_side['buy'].row_count, 1)
         self.assertEqual(by_side['sell'].row_count, 1)
         self.assertEqual(by_bucket['toy'].row_count, 2)
@@ -144,6 +147,7 @@ class ReportingPackTests(unittest.TestCase):
             self.assertEqual(benchmark_row['data_status'], 'placeholder')
             self.assertEqual(benchmark_row['row_count'], '')
             self.assertEqual(benchmark_row['avg_slippage_bps'], '')
+            self.assertEqual(benchmark_row['avg_amm_pre_trade_spot_gross_slippage_bps'], '')
             self.assertIn('placeholder', benchmark_row['notes'])
 
             validation = json.loads(result.summary_path.read_text(encoding='utf-8'))
@@ -165,12 +169,13 @@ class ReportingPackTests(unittest.TestCase):
             self.assertEqual(benchmark_row['fill_rate'], '0.975')
             self.assertEqual(benchmark_row['avg_completion_ratio'], '0.982')
             self.assertEqual(benchmark_row['avg_slippage_bps'], '6.2')
+            self.assertEqual(benchmark_row['avg_amm_pre_trade_spot_gross_slippage_bps'], '')
             self.assertEqual(benchmark_row['remainder_size_hbar'], '1250.5')
             self.assertEqual(benchmark_row['source_notes_path'], 'benchmarks/lambdaplex/source-notes.md')
             self.assertIn('published_metrics_captured', benchmark_row['benchmark_provenance'])
 
             final_report = result.final_comparison_path.read_text(encoding='utf-8')
-            self.assertIn('| Lambdaplex published panel | 42 | 0.975 | 0.982 | 6.2 | 1250.5 |', final_report)
+            self.assertIn('| Lambdaplex published panel | 42 | 0.975 | 0.982 | 6.2 |  | 1250.5 |', final_report)
             self.assertIn('benchmarks/lambdaplex/source-notes.md', final_report)
 
             summary = json.loads(result.summary_path.read_text(encoding='utf-8'))
@@ -529,6 +534,16 @@ class ReportingPackTests(unittest.TestCase):
         ]
         slippage_avg = sum(slippage_values) / len(slippage_values)
         slippage_avg_abs = sum(abs(value) for value in slippage_values) / len(slippage_values)
+        parity_slippage_values = [
+            float(row['amm_pre_trade_spot_gross_slippage_bps'])
+            for row in rows
+            if row.get('amm_pre_trade_spot_gross_slippage_bps')
+        ]
+        parity_slippage_avg = 0.0
+        parity_slippage_avg_abs = 0.0
+        if parity_slippage_values:
+            parity_slippage_avg = sum(parity_slippage_values) / len(parity_slippage_values)
+            parity_slippage_avg_abs = sum(abs(value) for value in parity_slippage_values) / len(parity_slippage_values)
 
         totals = {
             'requested_size_hbar': format_scaled_int(requested_size_raw_total, 8),
@@ -558,6 +573,12 @@ class ReportingPackTests(unittest.TestCase):
                 'avg': round(slippage_avg, 12),
                 'avg_abs': round(slippage_avg_abs, 12),
                 'finite_rows': len(slippage_values),
+                'infinite_rows': 0,
+            },
+            'amm_pre_trade_spot_gross_slippage_bps': {
+                'avg': round(parity_slippage_avg, 12),
+                'avg_abs': round(parity_slippage_avg_abs, 12),
+                'finite_rows': len(parity_slippage_values),
                 'infinite_rows': 0,
             },
             'totals': totals,
@@ -668,6 +689,7 @@ class ReportingPackTests(unittest.TestCase):
         source_ordering_key: str,
         base_volume_raw: str,
         target_volume_raw: str,
+        parity_slippage_value: str = '',
     ) -> dict[str, str]:
         row = {
             'lane': lane,
@@ -680,6 +702,7 @@ class ReportingPackTests(unittest.TestCase):
             'filled_notional': filled_notional,
             'completion_ratio': completion_ratio,
             'reference_price': reference_price,
+            'amm_pre_trade_spot_reference_price': reference_price,
             'avg_execution_price': avg_execution_price,
             'fees_paid': '0',
             'fee_methodology': 'test',
@@ -699,6 +722,7 @@ class ReportingPackTests(unittest.TestCase):
             'reference_price_source': 'test',
             'reference_price_fallback': 'false',
             'swap_metadata_covered': 'false',
+            'amm_pre_trade_spot_gross_slippage_bps': parity_slippage_value,
         }
         row[slippage_field] = slippage_value
         return row

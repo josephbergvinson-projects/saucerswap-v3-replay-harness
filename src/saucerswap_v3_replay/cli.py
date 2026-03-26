@@ -66,6 +66,7 @@ def cmd_v2_baseline(args: argparse.Namespace) -> int:
         'manifest_path': str(result.manifest_path.relative_to(root)),
         'row_counts': result.summary['row_counts'],
         'fees': result.summary['fees'],
+        'amm_pre_trade_spot_gross_slippage_bps': result.summary.get('amm_pre_trade_spot_gross_slippage_bps', {}),
         'reconciliation': result.summary['reconciliation'],
     }
     print(json.dumps(payload, indent=2))
@@ -82,6 +83,7 @@ def cmd_pure_book(args: argparse.Namespace) -> int:
         'row_counts': result.summary['row_counts'],
         'completion': result.summary['completion'],
         'slippage_bps': result.summary['slippage_bps'],
+        'amm_pre_trade_spot_gross_slippage_bps': result.summary.get('amm_pre_trade_spot_gross_slippage_bps', {}),
         'fees': result.summary['fees'],
         'reconciliation': result.summary['reconciliation'],
     }
@@ -101,6 +103,7 @@ def cmd_hybrid(args: argparse.Namespace) -> int:
         'admissibility': result.summary['admissibility'],
         'route_breakdown': result.summary['route_breakdown'],
         'slippage_bps': result.summary['slippage_bps'],
+        'amm_pre_trade_spot_gross_slippage_bps': result.summary.get('amm_pre_trade_spot_gross_slippage_bps', {}),
         'fees': result.summary['fees'],
         'reconciliation': result.summary['reconciliation'],
     }

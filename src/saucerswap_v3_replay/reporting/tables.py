@@ -21,8 +21,12 @@ AGGREGATE_FIELDNAMES = [
     'avg_completion_ratio',
     'avg_slippage_bps',
     'avg_abs_slippage_bps',
+    'avg_amm_pre_trade_spot_gross_slippage_bps',
+    'avg_abs_amm_pre_trade_spot_gross_slippage_bps',
     'finite_slippage_rows',
     'non_finite_slippage_rows',
+    'finite_amm_pre_trade_spot_gross_slippage_rows',
+    'non_finite_amm_pre_trade_spot_gross_slippage_rows',
     'full_fill_rows',
     'partial_fill_rows',
     'zero_fill_rows',
@@ -53,8 +57,12 @@ SEGMENT_FIELDNAMES = [
     'avg_completion_ratio',
     'avg_slippage_bps',
     'avg_abs_slippage_bps',
+    'avg_amm_pre_trade_spot_gross_slippage_bps',
+    'avg_abs_amm_pre_trade_spot_gross_slippage_bps',
     'finite_slippage_rows',
     'non_finite_slippage_rows',
+    'finite_amm_pre_trade_spot_gross_slippage_rows',
+    'non_finite_amm_pre_trade_spot_gross_slippage_rows',
     'full_fill_rows',
     'partial_fill_rows',
     'zero_fill_rows',
@@ -200,8 +208,12 @@ def rollup_metrics_fieldnames() -> tuple[str, ...]:
         'avg_completion_ratio',
         'avg_slippage_bps',
         'avg_abs_slippage_bps',
+        'avg_amm_pre_trade_spot_gross_slippage_bps',
+        'avg_abs_amm_pre_trade_spot_gross_slippage_bps',
         'finite_slippage_rows',
         'non_finite_slippage_rows',
+        'finite_amm_pre_trade_spot_gross_slippage_rows',
+        'non_finite_amm_pre_trade_spot_gross_slippage_rows',
         'full_fill_rows',
         'partial_fill_rows',
         'zero_fill_rows',
@@ -214,6 +226,10 @@ def rollup_metrics_fieldnames() -> tuple[str, ...]:
 
 
 def rollup_metrics(rollup: RollupSummary) -> dict[str, str]:
+    parity_metric_available = (
+        rollup.finite_amm_pre_trade_spot_gross_slippage_rows
+        + rollup.non_finite_amm_pre_trade_spot_gross_slippage_rows
+    ) > 0
     return {
         'row_count': str(rollup.row_count),
         'requested_size_hbar': format_scaled_int(rollup.requested_size_raw_total, 8),
@@ -225,8 +241,18 @@ def rollup_metrics(rollup: RollupSummary) -> dict[str, str]:
         'avg_completion_ratio': format_decimal(rollup.avg_completion_ratio),
         'avg_slippage_bps': format_decimal(rollup.avg_slippage_bps),
         'avg_abs_slippage_bps': format_decimal(rollup.avg_abs_slippage_bps),
+        'avg_amm_pre_trade_spot_gross_slippage_bps': (
+            format_decimal(rollup.avg_amm_pre_trade_spot_gross_slippage_bps) if parity_metric_available else ''
+        ),
+        'avg_abs_amm_pre_trade_spot_gross_slippage_bps': (
+            format_decimal(rollup.avg_abs_amm_pre_trade_spot_gross_slippage_bps) if parity_metric_available else ''
+        ),
         'finite_slippage_rows': str(rollup.finite_slippage_rows),
         'non_finite_slippage_rows': str(rollup.non_finite_slippage_rows),
+        'finite_amm_pre_trade_spot_gross_slippage_rows': str(rollup.finite_amm_pre_trade_spot_gross_slippage_rows),
+        'non_finite_amm_pre_trade_spot_gross_slippage_rows': str(
+            rollup.non_finite_amm_pre_trade_spot_gross_slippage_rows
+        ),
         'full_fill_rows': str(rollup.full_fill_rows),
         'partial_fill_rows': str(rollup.partial_fill_rows),
         'zero_fill_rows': str(rollup.zero_fill_rows),
@@ -269,7 +295,8 @@ def render_final_comparison_report(
                     ('Rows', 'row_count'),
                     ('Fill rate', 'fill_rate'),
                     ('Avg completion', 'avg_completion_ratio'),
-                    ('Avg slippage (bps)', 'avg_slippage_bps'),
+                    ('Avg study slippage (bps)', 'avg_slippage_bps'),
+                    ('Avg parity proxy slippage (bps)', 'avg_amm_pre_trade_spot_gross_slippage_bps'),
                     ('Remainder (HBAR)', 'remainder_size_hbar'),
                     ('Notes', 'notes'),
                 ],
@@ -285,7 +312,8 @@ def render_final_comparison_report(
                     ('Rows', 'row_count'),
                     ('Fill rate', 'fill_rate'),
                     ('Avg completion', 'avg_completion_ratio'),
-                    ('Avg slippage (bps)', 'avg_slippage_bps'),
+                    ('Avg study slippage (bps)', 'avg_slippage_bps'),
+                    ('Avg parity proxy slippage (bps)', 'avg_amm_pre_trade_spot_gross_slippage_bps'),
                 ],
             ),
             '',
@@ -300,7 +328,8 @@ def render_final_comparison_report(
                     ('Requested notional (USDC)', 'requested_notional_usdc'),
                     ('Fill rate', 'fill_rate'),
                     ('Avg completion', 'avg_completion_ratio'),
-                    ('Avg slippage (bps)', 'avg_slippage_bps'),
+                    ('Avg study slippage (bps)', 'avg_slippage_bps'),
+                    ('Avg parity proxy slippage (bps)', 'avg_amm_pre_trade_spot_gross_slippage_bps'),
                 ],
             ),
             '',

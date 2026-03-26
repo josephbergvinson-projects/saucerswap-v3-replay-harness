@@ -15,6 +15,15 @@ Short answer: **not yet**.
 
 Those two slide-reported values can now be stored in `headline_metrics` as provenance-only published claims, but they still **cannot** populate `comparable_headline_metrics` under the repo's benchmark contract.
 
+## RH-14 parity proxy note
+
+The harness now reports a separate local field, `avg_amm_pre_trade_spot_gross_slippage_bps`, to support competitor-facing Lambdaplex parity checks.
+
+- It uses the RH-13 best-supported locally reconstructable convention: AMM pre-trade pool spot as the reference basis, gross lane execution price, and a symmetric reference denominator.
+- That proxy is intended to explain why a locally reconstructable metric can land near the published `15.47` bps figure.
+- It is **not** evidence that Lambdaplex has confirmed this exact methodology.
+- It does **not** make the published panel fully comparable under the repo's benchmark contract, because the other required comparable fields and methodological disclosures are still missing.
+
 ### Why they are not yet comparable
 
 Our merge-eligible benchmark schema requires at minimum:
@@ -57,6 +66,7 @@ The slide numbers are not internally sufficient to reconstruct a normalized benc
 
 - `headline_metrics` stores raw published-panel values and labels for provenance.
 - `comparable_headline_metrics` stores only the normalized fields that can be merged into the reporting outputs.
+- `avg_amm_pre_trade_spot_gross_slippage_bps` is a local study metric surfaced in lane/report outputs as a parity proxy only; it does not belong in `comparable_headline_metrics` unless a published Lambdaplex source eventually discloses enough methodology to justify that mapping.
 - Required comparable fields when status becomes `comparable`:
   - `fill_rate`
   - `avg_completion_ratio`

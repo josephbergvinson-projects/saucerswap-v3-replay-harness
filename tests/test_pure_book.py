@@ -61,6 +61,10 @@ class PureBookSimulationTests(unittest.TestCase):
                 'tradeRowId': '2',
                 'swapEventId': '20',
                 'tradeTimestampSeconds': '1700000060',
+                'amountA': '0.1',
+                'amountB': '-0.5',
+                'sqrtRatioX96': '158456325028528675187087900672',
+                'liquidity': '1',
                 'reference_price_source': 'at_or_before',
                 'reference_price_fallback': 'false',
                 'swap_metadata_covered': 'true',
@@ -75,11 +79,14 @@ class PureBookSimulationTests(unittest.TestCase):
         expected_notional = 1000.0 + (second_level_size * 100.04)
         expected_avg_execution_price = expected_notional / 15.0
         expected_slippage_bps = ((expected_avg_execution_price / 100.0) - 1.0) * 10_000
+        expected_parity_slippage_bps = ((expected_avg_execution_price - 16.0) / 16.0) * 10_000
 
         self.assertAlmostEqual(row.record.filled_size, 15.0)
         self.assertAlmostEqual(row.record.filled_notional, expected_notional)
         self.assertAlmostEqual(row.record.avg_execution_price, expected_avg_execution_price)
         self.assertAlmostEqual(row.execution_slippage_bps, expected_slippage_bps)
+        self.assertAlmostEqual(row.amm_pre_trade_spot_reference_price, 16.0)
+        self.assertAlmostEqual(row.amm_pre_trade_spot_gross_slippage_bps, expected_parity_slippage_bps)
 
 
 class PureBookPipelineTests(unittest.TestCase):
@@ -161,6 +168,10 @@ class PureBookPipelineTests(unittest.TestCase):
                         'requested_notional': '1',
                         'observed_execution_price': '100.01',
                         'reference_price': '100',
+                        'amountA': '0.1',
+                        'amountB': '-0.5',
+                        'sqrtRatioX96': '158456325028528675187087900672',
+                        'liquidity': '1',
                         'reference_price_source': 'at_or_before',
                         'reference_price_fallback': 'false',
                         'swap_metadata_covered': 'true',
@@ -182,6 +193,10 @@ class PureBookPipelineTests(unittest.TestCase):
                         'requested_notional': '0.5',
                         'observed_execution_price': '99.99',
                         'reference_price': '100',
+                        'amountA': '-0.1',
+                        'amountB': '0.5',
+                        'sqrtRatioX96': '158456325028528675187087900672',
+                        'liquidity': '1',
                         'reference_price_source': 'at_or_before',
                         'reference_price_fallback': 'false',
                         'swap_metadata_covered': 'false',
@@ -214,6 +229,8 @@ class PureBookPipelineTests(unittest.TestCase):
             self.assertLess(float(first_lane_rows[0]['completion_ratio']), 1.0)
             self.assertGreater(float(first_lane_rows[0]['remainder_size']), 0.0)
             self.assertEqual(first_lane_rows[1]['completion_ratio'], '1')
+            self.assertEqual(first_lane_rows[0]['amm_pre_trade_spot_reference_price'], '16')
+            self.assertNotEqual(first_lane_rows[0]['amm_pre_trade_spot_gross_slippage_bps'], '')
 
             self.assertEqual(summary['row_counts']['pure_book_rows'], 2)
             self.assertEqual(summary['row_counts']['normalized_event_rows'], 2)
@@ -232,6 +249,8 @@ class PureBookPipelineTests(unittest.TestCase):
             self.assertEqual(summary['fees']['fee_missing_rows'], 1)
             self.assertEqual(summary['slippage_bps']['finite_rows'], 2)
             self.assertEqual(summary['slippage_bps']['excluded_zero_fill_rows'], 0)
+            self.assertEqual(summary['amm_pre_trade_spot_gross_slippage_bps']['supported_rows'], 2)
+            self.assertEqual(summary['coverage']['amm_pre_trade_spot_reference_supported_rows'], 2)
             self.assertTrue(summary['mapping']['fingerprint'])
             self.assertFalse(summary['mapping']['replay_projection_complete'])
 

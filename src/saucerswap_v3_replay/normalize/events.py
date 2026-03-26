@@ -31,6 +31,10 @@ class NormalizedEvent:
     base_volume_raw: int
     target_volume_raw: int
     source_ordering_key: str
+    amount_a: str = ''
+    amount_b: str = ''
+    sqrt_ratio_x96: str = ''
+    liquidity: str = ''
 
     @property
     def replay_unit_id(self) -> str:
@@ -76,6 +80,10 @@ class NormalizedEvent:
             'targetId': self.target_id,
             'baseVolumeRaw': str(self.base_volume_raw),
             'targetVolumeRaw': str(self.target_volume_raw),
+            'amountA': self.amount_a,
+            'amountB': self.amount_b,
+            'sqrtRatioX96': self.sqrt_ratio_x96,
+            'liquidity': self.liquidity,
             'requested_size': format_scaled_int(self.target_volume_raw, HBAR_DECIMALS),
             'requested_notional': format_scaled_int(self.base_volume_raw, USDC_DECIMALS),
             'observed_execution_price': format_decimal(self.observed_execution_price),
@@ -118,6 +126,10 @@ NORMALIZED_EVENT_FIELDNAMES = [
     'targetId',
     'baseVolumeRaw',
     'targetVolumeRaw',
+    'amountA',
+    'amountB',
+    'sqrtRatioX96',
+    'liquidity',
     'requested_size',
     'requested_notional',
     'observed_execution_price',
@@ -174,6 +186,15 @@ def parse_float(value: Any) -> float:
     return float(clean_numeric_string(value))
 
 
+def parse_optional_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text or text.lower() == 'null':
+        return None
+    return parse_float(text)
+
+
 def parse_timestamp_seconds(value: Any) -> int:
     text = clean_numeric_string(value)
     return math.floor(float(text))
@@ -209,6 +230,15 @@ def format_decimal(value: float, places: int = 12) -> str:
 
 def format_bool(value: bool) -> str:
     return 'true' if value else 'false'
+
+
+def clean_optional_numeric_string(value: Any) -> str:
+    if value is None:
+        return ''
+    text = str(value).strip()
+    if not text or text.lower() == 'null':
+        return ''
+    return clean_numeric_string(text)
 
 
 def infer_side(
@@ -287,6 +317,10 @@ def normalize_trade_row(
         target_id=str(row.get('targetId', '')).strip(),
         base_volume_raw=base_volume_raw,
         target_volume_raw=target_volume_raw,
+        amount_a=clean_optional_numeric_string(row.get('amountA')),
+        amount_b=clean_optional_numeric_string(row.get('amountB')),
+        sqrt_ratio_x96=clean_optional_numeric_string(row.get('sqrtRatioX96')),
+        liquidity=clean_optional_numeric_string(row.get('liquidity')),
         source_ordering_key=build_source_ordering_key(
             trade_timestamp_seconds=trade_timestamp_seconds,
             swap_event_id=swap_event_id,

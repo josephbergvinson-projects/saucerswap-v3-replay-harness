@@ -92,8 +92,8 @@ class V2RealizedMappingTests(unittest.TestCase):
                         'event_index': '1',
                         'side': 'buy',
                         'requested_size': '10',
-                        'requested_notional': '1',
-                        'reference_price': '0.1',
+                        'requested_notional': '160',
+                        'reference_price': '16',
                         'tradeRowId': '1',
                         'swapEventId': '10',
                         'tradeTimestampSeconds': '1700000000',
@@ -242,8 +242,8 @@ class V2RealizedPipelineTests(unittest.TestCase):
                         'event_index': '1',
                         'side': 'buy',
                         'requested_size': '10',
-                        'requested_notional': '1',
-                        'reference_price': '0.1',
+                        'requested_notional': '160',
+                        'reference_price': '16',
                         'tradeRowId': '1',
                         'swapEventId': '10',
                         'tradeTimestampSeconds': '1700000000',
@@ -259,8 +259,8 @@ class V2RealizedPipelineTests(unittest.TestCase):
                         'event_index': '2',
                         'side': 'sell',
                         'requested_size': '10',
-                        'requested_notional': '0.95',
-                        'reference_price': '0.1',
+                        'requested_notional': '356.4',
+                        'reference_price': '36',
                         'tradeRowId': '2',
                         'swapEventId': '20',
                         'tradeTimestampSeconds': '1700000060',
@@ -284,12 +284,16 @@ class V2RealizedPipelineTests(unittest.TestCase):
                         'side': 'buy',
                         'baseId': 'USDC',
                         'targetId': 'HBAR',
-                        'baseVolumeRaw': '1000000',
+                        'baseVolumeRaw': '160000000',
                         'targetVolumeRaw': '1000000000',
                         'requested_size': '10',
-                        'requested_notional': '1',
-                        'observed_execution_price': '0.101',
-                        'reference_price': '0.1',
+                        'requested_notional': '160',
+                        'observed_execution_price': '16.16',
+                        'reference_price': '16',
+                        'amountA': '0.1',
+                        'amountB': '-0.5',
+                        'sqrtRatioX96': '158456325028528675187087900672',
+                        'liquidity': '1',
                         'reference_price_source': 'at_or_before',
                         'reference_price_fallback': 'false',
                         'swap_metadata_covered': 'true',
@@ -305,12 +309,16 @@ class V2RealizedPipelineTests(unittest.TestCase):
                         'side': 'sell',
                         'baseId': 'USDC',
                         'targetId': 'HBAR',
-                        'baseVolumeRaw': '950000',
+                        'baseVolumeRaw': '356400000',
                         'targetVolumeRaw': '1000000000',
                         'requested_size': '10',
-                        'requested_notional': '0.95',
-                        'observed_execution_price': '0.095',
-                        'reference_price': '0.1',
+                        'requested_notional': '356.4',
+                        'observed_execution_price': '35.64',
+                        'reference_price': '36',
+                        'amountA': '-0.1',
+                        'amountB': '0.5',
+                        'sqrtRatioX96': '158456325028528675187087900672',
+                        'liquidity': '1',
                         'reference_price_source': 'at_or_before',
                         'reference_price_fallback': 'false',
                         'swap_metadata_covered': 'false',
@@ -332,7 +340,11 @@ class V2RealizedPipelineTests(unittest.TestCase):
             self.assertEqual(lane_rows[0]['source_ordering_key'], '1700000000:00000000000000000010:00000000000000000001')
             self.assertEqual(lane_rows[0]['completion_ratio'], '1')
             self.assertEqual(lane_rows[0]['realized_slippage_bps'], '100')
-            self.assertEqual(lane_rows[1]['realized_slippage_bps'], '526.315789473684')
+            self.assertEqual(lane_rows[0]['amm_pre_trade_spot_reference_price'], '16')
+            self.assertEqual(lane_rows[0]['amm_pre_trade_spot_gross_slippage_bps'], '100')
+            self.assertEqual(lane_rows[1]['realized_slippage_bps'], '101.010101010102')
+            self.assertEqual(lane_rows[1]['amm_pre_trade_spot_reference_price'], '36')
+            self.assertAlmostEqual(float(lane_rows[1]['amm_pre_trade_spot_gross_slippage_bps']), 100.0)
             self.assertEqual(lane_rows[0]['fee_precision'], 'not_allocated_per_replay_unit')
 
             self.assertEqual(summary['row_counts']['baseline_rows'], 2)
@@ -344,8 +356,11 @@ class V2RealizedPipelineTests(unittest.TestCase):
             self.assertEqual(summary['fees']['precise_fee_rows'], 0)
             self.assertEqual(summary['fees']['fee_covered_rows'], 1)
             self.assertEqual(summary['fees']['fee_missing_rows'], 1)
+            self.assertAlmostEqual(summary['amm_pre_trade_spot_gross_slippage_bps']['avg'], 100.0)
+            self.assertEqual(summary['amm_pre_trade_spot_gross_slippage_bps']['supported_rows'], 2)
+            self.assertEqual(summary['coverage']['amm_pre_trade_spot_reference_supported_rows'], 2)
             self.assertEqual(summary['totals']['requested_size_hbar'], '20')
-            self.assertEqual(summary['totals']['requested_notional_usdc'], '1.95')
+            self.assertEqual(summary['totals']['requested_notional_usdc'], '516.4')
             self.assertTrue(summary['reconciliation']['counts_match'])
             self.assertTrue(summary['reconciliation']['requested_size_matches_filled_size'])
             self.assertTrue(summary['reconciliation']['requested_notional_matches_filled_notional'])

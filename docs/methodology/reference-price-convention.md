@@ -17,3 +17,4 @@ The reference price is used for two jobs:
 - The same locked convention applies to both 3A and 3B.
 - The reference-price rule is frozen in Phase 0 and mirrored in `config/study.yaml`.
 - If a better canonical historical reference-price reconstruction becomes available later, it should be introduced as an explicit methodology revision rather than a silent pipeline change.
+- The RH-14 Lambdaplex-parity proxy does not alter this locked canonical rule. It is surfaced separately as `amm_pre_trade_spot_gross_slippage_bps`, using the RH-13 best-supported reconstructed AMM pre-trade pool spot plus a symmetric reference denominator.

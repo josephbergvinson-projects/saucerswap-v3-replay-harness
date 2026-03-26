@@ -10,7 +10,7 @@ from typing import Any, Iterator
 from ..baseline.v2_realized import _require_inputs, parse_bool_text, utc_now
 from ..benchmarks.lambdaplex import PublishedBenchmarkStatus, load_published_benchmark_status
 from ..metrics.summaries import LaneObservation, RollupSummary, roll_up_observations
-from ..normalize.events import parse_float, parse_int
+from ..normalize.events import parse_float, parse_int, parse_optional_float
 from ..settings import _load_yaml_payload
 from .tables import (
     AGGREGATE_FIELDNAMES,
@@ -475,6 +475,9 @@ def iter_lane_observations(csv_path: Path, *, slippage_field: str) -> Iterator[L
                 slippage_bps=parse_float(row[slippage_field]),
                 fee_covered=parse_bool_text(row.get('fee_covered')),
                 admissibility_passed=admissibility,
+                amm_pre_trade_spot_gross_slippage_bps=parse_optional_float(
+                    row.get('amm_pre_trade_spot_gross_slippage_bps')
+                ),
             )
 
 
@@ -565,6 +568,8 @@ def build_global_checks(
         f'Bucket split enabled in config/reporting.yaml: {bool_text(reporting_config.include_bucket_split)}.',
         f'Bucket basis from config/buckets.yaml: `{bucket_config.basis}` with semantics `{bucket_config.edge_semantics}`.',
         f'All direct lane rollups matched mounted lane summaries: {bool_text(all_pass)}.',
+        'Canonical `avg_slippage_bps` remains the external-reference study metric; '
+        '`avg_amm_pre_trade_spot_gross_slippage_bps` is surfaced separately as a Lambdaplex-parity proxy.',
     ]
     if benchmark_status.comparable:
         checks.append(
@@ -585,6 +590,7 @@ def aggregate_from_summary(spec: LaneInputSpec, artifacts: LaneArtifacts) -> Rol
     requested_notional_raw_total = direct.requested_notional_raw_total
     requested_size_total = requested_size_raw_total / 10**8
     filled_size_total = float(summary['totals']['filled_size_hbar'])
+    parity_slippage = summary.get('amm_pre_trade_spot_gross_slippage_bps', {})
 
     fill_rate = 0.0
     if requested_size_total > 0:
@@ -603,6 +609,10 @@ def aggregate_from_summary(spec: LaneInputSpec, artifacts: LaneArtifacts) -> Rol
         avg_abs_slippage_bps=float(summary['slippage_bps']['avg_abs']),
         finite_slippage_rows=int(summary['slippage_bps']['finite_rows']),
         non_finite_slippage_rows=int(summary['slippage_bps'].get('infinite_rows', 0)),
+        avg_amm_pre_trade_spot_gross_slippage_bps=float(parity_slippage.get('avg', 0.0)),
+        avg_abs_amm_pre_trade_spot_gross_slippage_bps=float(parity_slippage.get('avg_abs', 0.0)),
+        finite_amm_pre_trade_spot_gross_slippage_rows=int(parity_slippage.get('finite_rows', 0)),
+        non_finite_amm_pre_trade_spot_gross_slippage_rows=int(parity_slippage.get('infinite_rows', 0)),
         full_fill_rows=int(summary['completion']['full_fill_rows']),
         partial_fill_rows=int(summary['completion']['partial_fill_rows']),
         zero_fill_rows=int(summary['completion']['zero_fill_rows']),
@@ -619,6 +629,9 @@ def build_report_caveats(benchmark_status: PublishedBenchmarkStatus) -> list[str
         'This pack is an event-level replay benchmark, not an order-level reconstruction or production-fidelity V3 simulator.',
         'The reporting path reuses mounted RH-03, RH-04, RH-05, and RH-06 artifacts as read-only inputs and does not rebuild those layers.',
         '3A and 3B still carry `fees_paid=0.0` because the current phase has no grounded synthetic or blended fee model.',
+        'Canonical `avg_slippage_bps` remains the study-owned external-reference metric. '
+        '`avg_amm_pre_trade_spot_gross_slippage_bps` is a separate Lambdaplex-parity proxy based on the RH-13 '
+        'best-supported reconstructed AMM pre-trade pool spot plus a symmetric reference denominator.',
     ]
     if benchmark_status.comparable:
         caveats.append(
@@ -705,6 +718,12 @@ def serialize_rollup_summary(rollup: RollupSummary) -> dict[str, Any]:
         'avg_abs_slippage_bps': rollup.avg_abs_slippage_bps,
         'finite_slippage_rows': rollup.finite_slippage_rows,
         'non_finite_slippage_rows': rollup.non_finite_slippage_rows,
+        'avg_amm_pre_trade_spot_gross_slippage_bps': rollup.avg_amm_pre_trade_spot_gross_slippage_bps,
+        'avg_abs_amm_pre_trade_spot_gross_slippage_bps': rollup.avg_abs_amm_pre_trade_spot_gross_slippage_bps,
+        'finite_amm_pre_trade_spot_gross_slippage_rows': rollup.finite_amm_pre_trade_spot_gross_slippage_rows,
+        'non_finite_amm_pre_trade_spot_gross_slippage_rows': (
+            rollup.non_finite_amm_pre_trade_spot_gross_slippage_rows
+        ),
         'full_fill_rows': rollup.full_fill_rows,
         'partial_fill_rows': rollup.partial_fill_rows,
         'zero_fill_rows': rollup.zero_fill_rows,

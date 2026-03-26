@@ -25,6 +25,7 @@ class LaneObservation:
     slippage_bps: float
     fee_covered: bool
     admissibility_passed: bool | None = None
+    amm_pre_trade_spot_gross_slippage_bps: float | None = None
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,10 @@ class RollupSummary:
     avg_abs_slippage_bps: float
     finite_slippage_rows: int
     non_finite_slippage_rows: int
+    avg_amm_pre_trade_spot_gross_slippage_bps: float
+    avg_abs_amm_pre_trade_spot_gross_slippage_bps: float
+    finite_amm_pre_trade_spot_gross_slippage_rows: int
+    non_finite_amm_pre_trade_spot_gross_slippage_rows: int
     full_fill_rows: int
     partial_fill_rows: int
     zero_fill_rows: int
@@ -66,6 +71,10 @@ class _RollupAccumulator:
     slippage_abs_sum_bps: float = 0.0
     finite_slippage_rows: int = 0
     non_finite_slippage_rows: int = 0
+    amm_pre_trade_spot_slippage_sum_bps: float = 0.0
+    amm_pre_trade_spot_slippage_abs_sum_bps: float = 0.0
+    finite_amm_pre_trade_spot_slippage_rows: int = 0
+    non_finite_amm_pre_trade_spot_slippage_rows: int = 0
     full_fill_rows: int = 0
     partial_fill_rows: int = 0
     zero_fill_rows: int = 0
@@ -112,6 +121,17 @@ class _RollupAccumulator:
         else:
             self.non_finite_slippage_rows += 1
 
+        if observation.amm_pre_trade_spot_gross_slippage_bps is None:
+            return
+        if math.isfinite(observation.amm_pre_trade_spot_gross_slippage_bps):
+            self.finite_amm_pre_trade_spot_slippage_rows += 1
+            self.amm_pre_trade_spot_slippage_sum_bps += observation.amm_pre_trade_spot_gross_slippage_bps
+            self.amm_pre_trade_spot_slippage_abs_sum_bps += abs(
+                observation.amm_pre_trade_spot_gross_slippage_bps
+            )
+        else:
+            self.non_finite_amm_pre_trade_spot_slippage_rows += 1
+
     def finalize(self) -> RollupSummary:
         fill_rate = 0.0
         if self.requested_size_total > 0:
@@ -129,6 +149,16 @@ class _RollupAccumulator:
             avg_abs_slippage_bps=_safe_average(self.slippage_abs_sum_bps, self.finite_slippage_rows),
             finite_slippage_rows=self.finite_slippage_rows,
             non_finite_slippage_rows=self.non_finite_slippage_rows,
+            avg_amm_pre_trade_spot_gross_slippage_bps=_safe_average(
+                self.amm_pre_trade_spot_slippage_sum_bps,
+                self.finite_amm_pre_trade_spot_slippage_rows,
+            ),
+            avg_abs_amm_pre_trade_spot_gross_slippage_bps=_safe_average(
+                self.amm_pre_trade_spot_slippage_abs_sum_bps,
+                self.finite_amm_pre_trade_spot_slippage_rows,
+            ),
+            finite_amm_pre_trade_spot_gross_slippage_rows=self.finite_amm_pre_trade_spot_slippage_rows,
+            non_finite_amm_pre_trade_spot_gross_slippage_rows=self.non_finite_amm_pre_trade_spot_slippage_rows,
             full_fill_rows=self.full_fill_rows,
             partial_fill_rows=self.partial_fill_rows,
             zero_fill_rows=self.zero_fill_rows,
