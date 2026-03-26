@@ -223,6 +223,33 @@ Lead with three points:
 2. **Pure-book alone is not enough for large clips; hybrid is the better overall design surface.**
 3. **Lambdaplex can now be compared on a better slippage denominator, but only as a parity-proxy comparison, not a fully normalized benchmark row.**
 
+## Future studies
+
+This report should be read as a completed **counterfactual replay study**, not as the final word on production-faithful on-chain order-book behavior.
+
+The most useful next studies, if fidelity needs to increase later, are:
+
+1. **Fee-aware overlay rerun**
+   - Apply explicit V3 book fees and maker economics to `3A` and `3B` as a reporting-layer overlay.
+   - Recompute net slippage and all-in trader-cost tables without changing the current completion logic.
+   - This is the cleanest next step if the goal is to understand how much the current report moves once realistic fees are included.
+
+2. **Fee-aware hybrid admissibility**
+   - Re-test `3B` with fee-inclusive blended execution in the admissibility rule.
+   - This would answer whether realistic fees alter routing decisions, completion, and large-clip behavior rather than just post-trade cost reporting.
+
+3. **Production-faithful order-book simulation**
+   - Replace the replenishing synthetic-book assumption with a closer reconstruction of live on-chain order-book behavior.
+   - That would likely require historical order placement, cancellation, replacement, persistence, queue-priority, and matching-semantics data, plus more exact fee and timing semantics.
+   - It would also require a closer recovery of order-level admissibility / routing behavior than the current study-owned proxy.
+
+4. **Engineering validation pack**
+   - Add golden examples or canonical truth cases from engineering so the simulation can be validated against known matcher outcomes rather than only against replay-surface consistency checks.
+
+Why this matters:
+- The current study already answers the first-order strategic question: a V3-style surface appears materially better than the current V2 WHBAR/USDC pool, and the hybrid lane is the best overall study result.
+- What future work would improve is not the existence of that directional signal, but the confidence with which the study can be interpreted as a proxy for live deployed order-book behavior.
+
 ## Supporting repo outputs
 
 Tracked reports for sharing in the repo:
