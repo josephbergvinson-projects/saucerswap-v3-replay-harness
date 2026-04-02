@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import csv
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import hashlib
 import json
 import math
@@ -11,6 +11,15 @@ from typing import Any, Iterator
 
 from ..backstop.v2_residual import ResidualQuote, residual_quote_from_v2_row
 from ..baseline.v2_realized import average, format_optional_decimal, parse_bool_text, utc_now
+from ..fees import (
+    FeeRollupStats,
+    add_record_fee_rollups,
+    build_fee_summary_payload,
+    build_hybrid_fee_fields,
+    default_v3_scenario_id,
+    load_fee_policy,
+    v3_supported_scenarios,
+)
 from ..metrics.core import completion_ratio, slippage_bps, symmetric_reference_denominator_bps
 from ..normalize.events import format_bool, format_decimal, format_scaled_int, parse_float, parse_int, parse_optional_float
 from ..rules.admissibility import HybridRule, load_hybrid_rule, passes_hybrid_admissibility, passes_slippage_cap
@@ -20,7 +29,6 @@ from .book_profile import BookLevel
 from .pure_book import (
     PURE_BOOK_OUTPUT_FIELDNAMES,
     format_optional_bool,
-    load_fee_policy,
     nearly_equal,
     walk_replenishing_book,
 )
@@ -36,15 +44,14 @@ MANIFEST_FILENAME = 'hybrid_manifest.json'
 OVERFILL_TOLERANCE = 1e-9
 
 FEE_METHODOLOGY = (
-    'phase-0 fee policy keeps headline comparisons fee-aware, but 3B does not yet define a '
-    'separate synthetic or blended fee model; the lane records fees_paid as 0.0 and preserves '
-    'RH-03 fee_covered visibility instead of inventing per-replay-unit hybrid fee precision'
+    'RH-21 models 3B fee transfers route-by-route under the locked RH-20 contract: pure-book '
+    'filled notional uses the V3 WHBAR/USDC scenarios and residual routed to the V2 backstop uses '
+    'the locked V2 WHBAR/USDC split.'
 )
-FEE_PRECISION = 'no_synthetic_or_blended_fee_model'
+FEE_PRECISION = 'route_aware_modeled_from_locked_v2_v3_schedules'
 FEE_CAVEAT = (
-    '3B has no separate synthetic or blended fee model in the current Phase 0 config. Lane '
-    'records set fees_paid to 0.0 and preserve fee_covered visibility from RH-03 instead of '
-    'allocating ungrounded per-replay-unit hybrid fees.'
+    '3B liquidity-side fee output blends explicit V3 maker rebate capture with V2 active-LP fee '
+    'accrual when both routes execute. It is not full maker PnL or LP profitability.'
 )
 
 
@@ -128,6 +135,7 @@ class HybridStats:
     fee_covered_rows: int = 0
     fee_missing_rows: int = 0
     precise_fee_rows: int = 0
+    fee_rollups: FeeRollupStats = field(default_factory=FeeRollupStats)
     reference_price_fallback_rows: int = 0
     swap_metadata_covered_rows: int = 0
     swap_metadata_missing_rows: int = 0
@@ -203,12 +211,17 @@ def simulate_hybrid(
     levels: list[BookLevel],
     residual_quote: ResidualQuote | None,
     max_slippage_bps: float,
+    fee_policy: dict[str, Any],
+    *,
+    default_fee_scenario_id: str | None = None,
 ) -> ExecutionRecord:
     book_fill = walk_replenishing_book(unit, levels)
     filled_size = book_fill.filled_size
     weighted_notional = book_fill.filled_notional
     route_breakdown = {'pure_book': book_fill.filled_size}
     admissibility_passed = None
+    routed_size = 0.0
+    routed_execution_price: float | None = None
 
     if book_fill.remainder_size > 0:
         admissibility_passed = False
@@ -229,12 +242,22 @@ def simulate_hybrid(
                     max_slippage_bps=max_slippage_bps,
                 )
                 if admissibility_passed:
+                    routed_execution_price = residual_quote.execution_price
                     filled_size += routed_size
                     weighted_notional += routed_size * residual_quote.execution_price
                     route_breakdown['v2_backstop'] = routed_size
 
     avg_execution_price = weighted_notional / filled_size if filled_size else unit.reference_price
     remainder_size = max(unit.requested_size - filled_size, 0.0)
+    fee_fields = build_hybrid_fee_fields(
+        fee_policy,
+        requested_notional=unit.requested_notional,
+        pure_book_filled_size=book_fill.filled_size,
+        pure_book_filled_notional=book_fill.filled_notional,
+        v2_backstop_filled_size=routed_size if admissibility_passed else 0.0,
+        v2_backstop_execution_price=routed_execution_price,
+        default_scenario_id=default_fee_scenario_id or default_v3_scenario_id(fee_policy),
+    )
     return ExecutionRecord(
         lane=LANE_NAME,
         replay_unit_id=unit.replay_unit_id,
@@ -246,9 +269,18 @@ def simulate_hybrid(
         completion_ratio=completion_ratio(filled_size, unit.requested_size),
         reference_price=unit.reference_price,
         avg_execution_price=avg_execution_price,
-        fees_paid=0.0,
+        fees_paid=fee_fields['fees_paid'],
+        fee_contract_version=fee_fields['fee_contract_version'],
+        fee_scenario_id=fee_fields['fee_scenario_id'],
+        v3_min_order_ineligible=fee_fields['v3_min_order_ineligible'],
+        fee_basis_filled_notional_usd=fee_fields['fee_basis_filled_notional_usd'],
+        trader_fee_paid_usd=fee_fields['trader_fee_paid_usd'],
+        protocol_fee_earned_usd=fee_fields['protocol_fee_earned_usd'],
+        active_lp_fee_earned_usd=fee_fields['active_lp_fee_earned_usd'],
+        maker_rebate_earned_usd=fee_fields['maker_rebate_earned_usd'],
         remainder_size=remainder_size,
         route_breakdown=route_breakdown,
+        fee_route_breakdown=fee_fields['fee_route_breakdown'],
         admissibility_passed=admissibility_passed,
     )
 
@@ -265,6 +297,7 @@ def run_hybrid_lane(root: str | Path) -> HybridBuildResult:
 
     hybrid_rule = load_hybrid_rule(hybrid_rule_path)
     fee_policy = load_fee_policy(fee_config_path)
+    default_fee_scenario_id = default_v3_scenario_id(fee_policy)
 
     lane_output_path = processed_dir / LANE_OUTPUT_FILENAME
     summary_path = processed_dir / SUMMARY_FILENAME
@@ -277,7 +310,13 @@ def run_hybrid_lane(root: str | Path) -> HybridBuildResult:
         writer = csv.DictWriter(lane_handle, fieldnames=PURE_BOOK_OUTPUT_FIELDNAMES)
         writer.writeheader()
         for aligned in iter_aligned_lane_rows(pure_book_path, baseline_path):
-            hybrid_row = build_hybrid_row(aligned.pure_book_row, aligned.baseline_row, hybrid_rule)
+            hybrid_row = build_hybrid_row(
+                aligned.pure_book_row,
+                aligned.baseline_row,
+                hybrid_rule,
+                fee_policy,
+                default_fee_scenario_id=default_fee_scenario_id,
+            )
             writer.writerow(render_hybrid_row(hybrid_row))
             update_stats(stats, hybrid_row)
             mapping_fingerprint.update(
@@ -414,7 +453,14 @@ def assert_aligned_rows(pure_row: HybridSourceRow, base_row: HybridSourceRow, *,
 
 
 
-def build_hybrid_row(pure_book_row: HybridSourceRow, baseline_row: HybridSourceRow, rule: HybridRule) -> HybridRow:
+def build_hybrid_row(
+    pure_book_row: HybridSourceRow,
+    baseline_row: HybridSourceRow,
+    rule: HybridRule,
+    fee_policy: dict[str, Any],
+    *,
+    default_fee_scenario_id: str | None = None,
+) -> HybridRow:
     residual_quote = residual_quote_from_v2_row(
         {
             'lane': 'historical_v2_proxy',
@@ -426,7 +472,13 @@ def build_hybrid_row(pure_book_row: HybridSourceRow, baseline_row: HybridSourceR
             'tradeTimestampSeconds': str(baseline_row.trade_timestamp_seconds),
         }
     )
-    record = hybrid_record_from_mounted_rows(pure_book_row, residual_quote, rule)
+    record = hybrid_record_from_mounted_rows(
+        pure_book_row,
+        residual_quote,
+        rule,
+        fee_policy,
+        default_fee_scenario_id=default_fee_scenario_id,
+    )
     execution_slippage = 0.0
     if record.filled_size > 0:
         execution_slippage = slippage_bps(
@@ -473,14 +525,18 @@ def hybrid_record_from_mounted_rows(
     pure_book_row: HybridSourceRow,
     residual_quote: ResidualQuote | None,
     rule: HybridRule,
+    fee_policy: dict[str, Any],
+    *,
+    default_fee_scenario_id: str | None = None,
 ) -> ExecutionRecord:
     filled_size = pure_book_row.filled_size
     filled_notional = pure_book_row.filled_notional
     route_breakdown = {'pure_book': pure_book_row.filled_size}
     admissibility_passed = None
+    routed_size = 0.0
+    routed_execution_price: float | None = None
 
     if pure_book_row.remainder_size > 0:
-        routed_size = 0.0
         projected_execution_price = None
         if residual_quote is not None:
             routed_size = min(pure_book_row.remainder_size, residual_quote.available_size)
@@ -500,6 +556,7 @@ def hybrid_record_from_mounted_rows(
             quote_available=residual_quote is not None,
         )
         if admissibility_passed and residual_quote is not None and routed_size > 0:
+            routed_execution_price = residual_quote.execution_price
             filled_size += routed_size
             filled_notional += routed_size * residual_quote.execution_price
             route_breakdown['v2_backstop'] = routed_size
@@ -515,6 +572,15 @@ def hybrid_record_from_mounted_rows(
         filled_notional = avg_execution_price * filled_size
 
     remainder_size = max(pure_book_row.requested_size - filled_size, 0.0)
+    fee_fields = build_hybrid_fee_fields(
+        fee_policy,
+        requested_notional=pure_book_row.requested_notional,
+        pure_book_filled_size=pure_book_row.filled_size,
+        pure_book_filled_notional=pure_book_row.filled_notional,
+        v2_backstop_filled_size=routed_size if admissibility_passed else 0.0,
+        v2_backstop_execution_price=routed_execution_price,
+        default_scenario_id=default_fee_scenario_id or default_v3_scenario_id(fee_policy),
+    )
     return ExecutionRecord(
         lane=LANE_NAME,
         replay_unit_id=pure_book_row.replay_unit_id,
@@ -526,9 +592,18 @@ def hybrid_record_from_mounted_rows(
         completion_ratio=completion_ratio(filled_size, pure_book_row.requested_size),
         reference_price=pure_book_row.reference_price,
         avg_execution_price=avg_execution_price,
-        fees_paid=0.0,
+        fees_paid=fee_fields['fees_paid'],
+        fee_contract_version=fee_fields['fee_contract_version'],
+        fee_scenario_id=fee_fields['fee_scenario_id'],
+        v3_min_order_ineligible=fee_fields['v3_min_order_ineligible'],
+        fee_basis_filled_notional_usd=fee_fields['fee_basis_filled_notional_usd'],
+        trader_fee_paid_usd=fee_fields['trader_fee_paid_usd'],
+        protocol_fee_earned_usd=fee_fields['protocol_fee_earned_usd'],
+        active_lp_fee_earned_usd=fee_fields['active_lp_fee_earned_usd'],
+        maker_rebate_earned_usd=fee_fields['maker_rebate_earned_usd'],
         remainder_size=remainder_size,
         route_breakdown=route_breakdown,
+        fee_route_breakdown=fee_fields['fee_route_breakdown'],
         admissibility_passed=admissibility_passed,
     )
 
@@ -554,9 +629,18 @@ def render_hybrid_row(row: HybridRow) -> dict[str, str]:
             row.amm_pre_trade_spot_gross_slippage_bps
         ),
         'fees_paid': format_decimal(record.fees_paid),
+        'fee_contract_version': record.fee_contract_version,
+        'fee_scenario_id': record.fee_scenario_id,
+        'v3_min_order_ineligible': format_bool(record.v3_min_order_ineligible),
+        'fee_basis_filled_notional_usd': format_decimal(record.fee_basis_filled_notional_usd),
+        'trader_fee_paid_usd': format_decimal(record.trader_fee_paid_usd),
+        'protocol_fee_earned_usd': format_decimal(record.protocol_fee_earned_usd),
+        'active_lp_fee_earned_usd': format_decimal(record.active_lp_fee_earned_usd),
+        'maker_rebate_earned_usd': format_decimal(record.maker_rebate_earned_usd),
         'fee_methodology': FEE_METHODOLOGY,
         'fee_precision': FEE_PRECISION,
         'fee_covered': format_bool(row.fee_covered),
+        'fee_route_breakdown': json.dumps(record.fee_route_breakdown, sort_keys=True),
         'remainder_size': format_decimal(record.remainder_size),
         'route_breakdown': json.dumps(record.route_breakdown, sort_keys=True),
         'admissibility_passed': format_optional_bool(record.admissibility_passed),
@@ -614,6 +698,10 @@ def update_stats(stats: HybridStats, row: HybridRow) -> None:
         stats.fee_covered_rows += 1
     else:
         stats.fee_missing_rows += 1
+
+    if record.fee_contract_version:
+        stats.precise_fee_rows += 1
+        add_record_fee_rollups(stats.fee_rollups, record)
 
     if row.reference_price_fallback:
         stats.reference_price_fallback_rows += 1
@@ -731,7 +819,7 @@ def build_summary(
                 'amm_pre_trade_spot_gross_slippage_bps uses the RH-13 best-supported '
                 'AMM pre-trade pool-spot gross convention with a symmetric reference denominator'
             ),
-            'fee_treatment': 'no_synthetic_or_blended_fee_model_flag_and_continue',
+            'fee_treatment': 'route_aware_modeled_from_locked_v2_and_v3_schedules',
         },
         'inputs': {
             'pure_book_path': str(pure_book_path),
@@ -826,6 +914,12 @@ def build_summary(
             'fee_covered_rows': stats.fee_covered_rows,
             'fee_missing_rows': stats.fee_missing_rows,
             'precise_fee_rows': stats.precise_fee_rows,
+            **build_fee_summary_payload(
+                fee_rollups=stats.fee_rollups,
+                requested_notional_total=stats.requested_notional_raw_total / 1_000_000,
+                default_scenario_id=default_v3_scenario_id(fee_policy),
+                supported_scenarios=v3_supported_scenarios(fee_policy),
+            ),
             'policy': fee_policy,
             'caveat': FEE_CAVEAT,
         },

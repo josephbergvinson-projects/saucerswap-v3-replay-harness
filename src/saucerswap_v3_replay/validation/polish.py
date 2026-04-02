@@ -69,6 +69,7 @@ def run_validation_polish(root: str | Path) -> ValidationPolishBuildResult:
     reporting_summary_path = processed_dir / 'reporting_pack_summary.json'
     reporting_manifest_path = processed_dir / 'reporting_pack_manifest.json'
     bucket_config_path = config_dir / 'buckets.yaml'
+    fee_config_path = config_dir / 'fees.yaml'
     benchmark_path = repo_root / 'benchmarks' / 'lambdaplex' / 'published-results.json'
     toy_book_path = fixture_dir / 'toy_book.yaml'
     toy_flow_path = fixture_dir / 'toy_flow.csv'
@@ -86,6 +87,7 @@ def run_validation_polish(root: str | Path) -> ValidationPolishBuildResult:
             reporting_summary_path,
             reporting_manifest_path,
             bucket_config_path,
+            fee_config_path,
             benchmark_path,
             toy_book_path,
             toy_flow_path,
@@ -112,6 +114,7 @@ def run_validation_polish(root: str | Path) -> ValidationPolishBuildResult:
         toy_book_path,
         toy_flow_path,
         toy_expected_outputs_path,
+        fee_config_path=fee_config_path,
     )
 
     sampled_realized_v2_json_path = generated_dir / SAMPLED_V2_JSON_FILENAME
@@ -156,6 +159,7 @@ def run_validation_polish(root: str | Path) -> ValidationPolishBuildResult:
             'mounted_hybrid_summary_path': str(hybrid_summary_path.resolve()),
             'mounted_reporting_summary_path': str(reporting_summary_path.resolve()),
             'bucket_config_path': str(bucket_config_path.resolve()),
+            'fee_config_path': str(fee_config_path.resolve()),
             'benchmark_path': str(benchmark_path.resolve()),
             'toy_book_path': str(toy_book_path.resolve()),
             'toy_flow_path': str(toy_flow_path.resolve()),
@@ -230,6 +234,7 @@ def run_validation_polish(root: str | Path) -> ValidationPolishBuildResult:
             ],
             'config': [
                 manifest_input_entry('bucket_config', bucket_config_path),
+                manifest_input_entry('fee_config', fee_config_path),
                 manifest_input_entry('benchmark', benchmark_path),
             ],
             'fixtures': [

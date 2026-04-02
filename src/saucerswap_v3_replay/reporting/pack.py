@@ -628,7 +628,7 @@ def build_report_caveats(benchmark_status: PublishedBenchmarkStatus) -> list[str
     caveats = [
         'This pack is an event-level replay benchmark, not an order-level reconstruction or production-fidelity V3 simulator.',
         'The reporting path reuses mounted RH-03, RH-04, RH-05, and RH-06 artifacts as read-only inputs and does not rebuild those layers.',
-        '3A and 3B still carry `fees_paid=0.0` because the current phase has no grounded synthetic or blended fee model.',
+        'Fee outputs use the locked RH-20 contract: V2 applies the fixed WHBAR/USDC trader/LP/protocol split, 3A applies the locked V3 scenarios on pure-book filled notional, and 3B blends V3 pure-book fees with V2 residual-backstop fees when applicable.',
         'Canonical `avg_slippage_bps` remains the study-owned external-reference metric. '
         '`avg_amm_pre_trade_spot_gross_slippage_bps` is a separate Lambdaplex-parity proxy based on the RH-13 '
         'best-supported reconstructed AMM pre-trade pool spot plus a symmetric reference denominator.',

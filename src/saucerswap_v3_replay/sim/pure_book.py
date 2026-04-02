@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import csv
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import hashlib
 import json
 import math
@@ -17,6 +17,15 @@ from ..baseline.v2_realized import (
     iter_aligned_event_rows,
     utc_now,
 )
+from ..fees import (
+    FeeRollupStats,
+    add_record_fee_rollups,
+    build_fee_summary_payload,
+    build_v3_fee_fields,
+    default_v3_scenario_id,
+    load_fee_policy,
+    v3_supported_scenarios,
+)
 from ..metrics.core import (
     completion_ratio,
     reconstruct_amm_pre_trade_spot_reference,
@@ -25,7 +34,6 @@ from ..metrics.core import (
 )
 from ..normalize.events import format_bool, format_decimal, format_scaled_int
 from ..schema import ExecutionRecord, ReplayUnit
-from ..settings import _load_yaml_payload
 from ..validation.reconcile import reconcile_totals
 from .book_profile import BookLevel, BookProfile, load_book_profile
 
@@ -55,9 +63,18 @@ PURE_BOOK_OUTPUT_FIELDNAMES = [
     'execution_slippage_bps',
     'amm_pre_trade_spot_gross_slippage_bps',
     'fees_paid',
+    'fee_contract_version',
+    'fee_scenario_id',
+    'v3_min_order_ineligible',
+    'fee_basis_filled_notional_usd',
+    'trader_fee_paid_usd',
+    'protocol_fee_earned_usd',
+    'active_lp_fee_earned_usd',
+    'maker_rebate_earned_usd',
     'fee_methodology',
     'fee_precision',
     'fee_covered',
+    'fee_route_breakdown',
     'remainder_size',
     'route_breakdown',
     'admissibility_passed',
@@ -75,15 +92,14 @@ PURE_BOOK_OUTPUT_FIELDNAMES = [
 ]
 
 FEE_METHODOLOGY = (
-    'phase-0 fee policy keeps headline comparisons fee-aware, but 3A does not yet define a '
-    'separate synthetic fee model; the lane records fees_paid as 0.0 and preserves RH-03 '
-    'fee_covered visibility instead of inventing per-replay-unit fee precision'
+    'RH-21 models 3A fee transfers from the locked RH-20 V3 WHBAR/USDC scenarios on pure-book '
+    'filled notional, with `no_xsauce` as the default top-level scenario and both locked xSAUCE '
+    'cases preserved in fee_route_breakdown for later reporting.'
 )
-FEE_PRECISION = 'no_synthetic_fee_model'
+FEE_PRECISION = 'modeled_from_locked_v3_schedule'
 FEE_CAVEAT = (
-    '3A has no separate synthetic fee model in the current Phase 0 config. Lane records set '
-    'fees_paid to 0.0 and preserve fee_covered visibility from RH-03 instead of allocating '
-    'unguarded synthetic per-replay-unit fees.'
+    '3A liquidity-side fee output is explicit maker rebate capture under the locked V3 schedule. '
+    'It is not full market-maker PnL, spread capture, inventory carry, or adverse-selection analysis.'
 )
 
 
@@ -125,6 +141,7 @@ class PureBookStats:
     fee_covered_rows: int = 0
     fee_missing_rows: int = 0
     precise_fee_rows: int = 0
+    fee_rollups: FeeRollupStats = field(default_factory=FeeRollupStats)
     reference_price_fallback_rows: int = 0
     swap_metadata_covered_rows: int = 0
     swap_metadata_missing_rows: int = 0
@@ -216,8 +233,22 @@ def walk_replenishing_book(unit: ReplayUnit, levels: list[BookLevel]) -> Simulat
     )
 
 
-def simulate_pure_book(unit: ReplayUnit, levels: list[BookLevel]) -> ExecutionRecord:
+def simulate_pure_book(
+    unit: ReplayUnit,
+    levels: list[BookLevel],
+    fee_policy: dict[str, Any],
+    *,
+    default_fee_scenario_id: str | None = None,
+) -> ExecutionRecord:
     fill = walk_replenishing_book(unit, levels)
+    fee_fields = build_v3_fee_fields(
+        fee_policy,
+        requested_notional=unit.requested_notional,
+        filled_size=fill.filled_size,
+        filled_notional=fill.filled_notional,
+        route_name='pure_book',
+        default_scenario_id=default_fee_scenario_id or default_v3_scenario_id(fee_policy),
+    )
     return ExecutionRecord(
         lane=LANE_NAME,
         replay_unit_id=unit.replay_unit_id,
@@ -229,9 +260,18 @@ def simulate_pure_book(unit: ReplayUnit, levels: list[BookLevel]) -> ExecutionRe
         completion_ratio=completion_ratio(fill.filled_size, unit.requested_size),
         reference_price=unit.reference_price,
         avg_execution_price=fill.avg_execution_price,
-        fees_paid=0.0,
+        fees_paid=fee_fields['fees_paid'],
+        fee_contract_version=fee_fields['fee_contract_version'],
+        fee_scenario_id=fee_fields['fee_scenario_id'],
+        v3_min_order_ineligible=fee_fields['v3_min_order_ineligible'],
+        fee_basis_filled_notional_usd=fee_fields['fee_basis_filled_notional_usd'],
+        trader_fee_paid_usd=fee_fields['trader_fee_paid_usd'],
+        protocol_fee_earned_usd=fee_fields['protocol_fee_earned_usd'],
+        active_lp_fee_earned_usd=fee_fields['active_lp_fee_earned_usd'],
+        maker_rebate_earned_usd=fee_fields['maker_rebate_earned_usd'],
         remainder_size=fill.remainder_size,
         route_breakdown={'pure_book': fill.filled_size},
+        fee_route_breakdown=fee_fields['fee_route_breakdown'],
         admissibility_passed=None,
     )
 
@@ -240,10 +280,17 @@ def build_pure_book_row(
     unit: ReplayUnit,
     context: ObservedEventContext,
     levels: list[BookLevel],
+    fee_policy: dict[str, Any],
     *,
+    default_fee_scenario_id: str | None = None,
     replay_projection_verified: bool = True,
 ) -> PureBookRow:
-    record = simulate_pure_book(unit, levels)
+    record = simulate_pure_book(
+        unit,
+        levels,
+        fee_policy,
+        default_fee_scenario_id=default_fee_scenario_id,
+    )
     amm_pre_trade_spot_reference = reconstruct_amm_pre_trade_spot_reference(
         side=unit.side,
         sqrt_ratio_x96=context.sqrt_ratio_x96,
@@ -287,6 +334,7 @@ def run_pure_book_lane(root: str | Path) -> PureBookBuildResult:
         raise ValueError('3A pure-book lane requires replenish_per_replay_unit=true under the locked Phase 0 contract')
 
     fee_policy = load_fee_policy(fee_config_path)
+    default_fee_scenario_id = default_v3_scenario_id(fee_policy)
 
     processed_dir = repo_root / 'data' / 'processed'
     processed_dir.mkdir(parents=True, exist_ok=True)
@@ -305,6 +353,8 @@ def run_pure_book_lane(root: str | Path) -> PureBookBuildResult:
                 aligned.replay_unit,
                 aligned.context,
                 list(book_profile.levels),
+                fee_policy,
+                default_fee_scenario_id=default_fee_scenario_id,
                 replay_projection_verified=aligned.replay_projection_verified,
             )
             writer.writerow(render_pure_book_row(pure_book_row))
@@ -352,14 +402,6 @@ def run_pure_book_lane(root: str | Path) -> PureBookBuildResult:
     )
 
 
-def load_fee_policy(path: str | Path) -> dict[str, Any]:
-    payload = _load_yaml_payload(Path(path))
-    fees = payload.get('fees')
-    if not isinstance(fees, dict):
-        raise ValueError(f'{path} must define a top-level fees mapping')
-    return fees
-
-
 def render_pure_book_row(row: PureBookRow) -> dict[str, str]:
     record = row.record
     context = row.context
@@ -381,9 +423,18 @@ def render_pure_book_row(row: PureBookRow) -> dict[str, str]:
             row.amm_pre_trade_spot_gross_slippage_bps
         ),
         'fees_paid': format_decimal(record.fees_paid),
+        'fee_contract_version': record.fee_contract_version,
+        'fee_scenario_id': record.fee_scenario_id,
+        'v3_min_order_ineligible': format_bool(record.v3_min_order_ineligible),
+        'fee_basis_filled_notional_usd': format_decimal(record.fee_basis_filled_notional_usd),
+        'trader_fee_paid_usd': format_decimal(record.trader_fee_paid_usd),
+        'protocol_fee_earned_usd': format_decimal(record.protocol_fee_earned_usd),
+        'active_lp_fee_earned_usd': format_decimal(record.active_lp_fee_earned_usd),
+        'maker_rebate_earned_usd': format_decimal(record.maker_rebate_earned_usd),
         'fee_methodology': FEE_METHODOLOGY,
         'fee_precision': FEE_PRECISION,
         'fee_covered': format_bool(context.fee_covered),
+        'fee_route_breakdown': json.dumps(record.fee_route_breakdown, sort_keys=True),
         'remainder_size': format_decimal(record.remainder_size),
         'route_breakdown': json.dumps(record.route_breakdown, sort_keys=True),
         'admissibility_passed': format_optional_bool(record.admissibility_passed),
@@ -444,6 +495,10 @@ def update_stats(stats: PureBookStats, row: PureBookRow) -> None:
         stats.fee_covered_rows += 1
     else:
         stats.fee_missing_rows += 1
+
+    if record.fee_contract_version:
+        stats.precise_fee_rows += 1
+        add_record_fee_rollups(stats.fee_rollups, record)
 
     if context.reference_price_fallback:
         stats.reference_price_fallback_rows += 1
@@ -529,7 +584,7 @@ def build_summary(
                 'AMM pre-trade pool-spot gross convention with a symmetric reference denominator'
             ),
             'completion_basis': 'filled_size_over_requested_size',
-            'fee_treatment': 'no_synthetic_fee_model_flag_and_continue',
+            'fee_treatment': 'modeled_from_locked_v3_scenarios_on_pure_book_filled_notional',
         },
         'inputs': {
             'replay_units_path': str(replay_units_path),
@@ -605,6 +660,12 @@ def build_summary(
             'fee_covered_rows': stats.fee_covered_rows,
             'fee_missing_rows': stats.fee_missing_rows,
             'precise_fee_rows': stats.precise_fee_rows,
+            **build_fee_summary_payload(
+                fee_rollups=stats.fee_rollups,
+                requested_notional_total=stats.requested_notional_raw_total / 1_000_000,
+                default_scenario_id=default_v3_scenario_id(fee_policy),
+                supported_scenarios=v3_supported_scenarios(fee_policy),
+            ),
             'policy': fee_policy,
             'caveat': FEE_CAVEAT,
         },

@@ -12,6 +12,7 @@ from saucerswap_v3_replay.baseline.v2_realized import (
     observed_event_context_from_row,
     run_v2_realized_baseline,
 )
+from saucerswap_v3_replay.fees import load_fee_policy
 from saucerswap_v3_replay.schema import ReplayUnit
 
 
@@ -30,7 +31,8 @@ class V2RealizedRecordTests(unittest.TestCase):
             swap_event_id='10',
             trade_timestamp_seconds=1700000000,
         )
-        record = build_v2_realized_record(unit, execution_price=0.333333333333)
+        fee_policy = load_fee_policy(Path('config/fees.yaml'))
+        record = build_v2_realized_record(unit, execution_price=0.333333333333, fee_policy=fee_policy)
         self.assertEqual(record.filled_size, 3.0)
         self.assertEqual(record.filled_notional, 1.0)
         self.assertEqual(record.completion_ratio, 1.0)
@@ -70,10 +72,13 @@ class V2RealizedRecordTests(unittest.TestCase):
             }
         )
 
-        row = build_baseline_row(unit, context)
+        fee_policy = load_fee_policy(Path('config/fees.yaml'))
+        row = build_baseline_row(unit, context, fee_policy)
         self.assertAlmostEqual(row.record.avg_execution_price, 0.095)
         self.assertAlmostEqual(row.realized_slippage_bps, 526.315789473684)
-        self.assertEqual(row.record.fees_paid, 0.0)
+        self.assertAlmostEqual(row.record.fees_paid, 0.001425)
+        self.assertAlmostEqual(row.record.active_lp_fee_earned_usd, 0.0011875)
+        self.assertAlmostEqual(row.record.protocol_fee_earned_usd, 0.0002375)
 
 
 class V2RealizedMappingTests(unittest.TestCase):
@@ -229,8 +234,11 @@ class V2RealizedPipelineTests(unittest.TestCase):
             root = Path(tmpdir)
             interim_dir = root / 'data' / 'interim'
             processed_dir = root / 'data' / 'processed'
+            config_dir = root / 'config'
             interim_dir.mkdir(parents=True)
             processed_dir.mkdir(parents=True)
+            config_dir.mkdir(parents=True)
+            (config_dir / 'fees.yaml').write_text(Path('config/fees.yaml').read_text(encoding='utf-8'), encoding='utf-8')
 
             self._write_csv(
                 interim_dir / 'replay_units.csv',
@@ -345,7 +353,11 @@ class V2RealizedPipelineTests(unittest.TestCase):
             self.assertEqual(lane_rows[1]['realized_slippage_bps'], '101.010101010102')
             self.assertEqual(lane_rows[1]['amm_pre_trade_spot_reference_price'], '36')
             self.assertAlmostEqual(float(lane_rows[1]['amm_pre_trade_spot_gross_slippage_bps']), 100.0)
-            self.assertEqual(lane_rows[0]['fee_precision'], 'not_allocated_per_replay_unit')
+            self.assertEqual(lane_rows[0]['fee_precision'], 'modeled_from_locked_v2_schedule')
+            self.assertEqual(lane_rows[0]['fee_scenario_id'], 'v2_fixed')
+            self.assertEqual(lane_rows[0]['trader_fee_paid_usd'], '0.24')
+            self.assertEqual(lane_rows[0]['active_lp_fee_earned_usd'], '0.2')
+            self.assertEqual(lane_rows[0]['protocol_fee_earned_usd'], '0.04')
 
             self.assertEqual(summary['row_counts']['baseline_rows'], 2)
             self.assertEqual(summary['row_counts']['normalized_event_rows'], 2)
@@ -353,9 +365,15 @@ class V2RealizedPipelineTests(unittest.TestCase):
             self.assertEqual(summary['row_counts']['replay_projection_missing_tail_rows'], 0)
             self.assertEqual(summary['completion']['full_fill_rows'], 2)
             self.assertEqual(summary['completion']['avg_completion_ratio'], 1.0)
-            self.assertEqual(summary['fees']['precise_fee_rows'], 0)
+            self.assertEqual(summary['fees']['precise_fee_rows'], 2)
             self.assertEqual(summary['fees']['fee_covered_rows'], 1)
             self.assertEqual(summary['fees']['fee_missing_rows'], 1)
+            self.assertEqual(summary['fees']['default_scenario_id'], 'v2_fixed')
+            self.assertTrue(summary['fees']['recipient_reconciliation_pass'])
+            self.assertEqual(summary['fees']['default_rollup']['trader_fee_paid_usd'], '0.7746')
+            self.assertEqual(summary['fees']['default_rollup']['active_lp_fee_earned_usd'], '0.6455')
+            self.assertEqual(summary['fees']['default_rollup']['protocol_fee_earned_usd'], '0.1291')
+            self.assertEqual(summary['fees']['default_rollup']['trader_fee_paid_bps_on_filled_notional'], 15.0)
             self.assertAlmostEqual(summary['amm_pre_trade_spot_gross_slippage_bps']['avg'], 100.0)
             self.assertEqual(summary['amm_pre_trade_spot_gross_slippage_bps']['supported_rows'], 2)
             self.assertEqual(summary['coverage']['amm_pre_trade_spot_reference_supported_rows'], 2)
@@ -371,7 +389,7 @@ class V2RealizedPipelineTests(unittest.TestCase):
             self.assertTrue(manifest['mapping']['one_to_one_mapping_verified'])
             self.assertTrue(manifest['mapping']['replay_projection_complete'])
             self.assertEqual(manifest['row_counts']['baseline_rows'], 2)
-            self.assertTrue(any('fees_paid to 0.0' in caveat for caveat in manifest['caveats']))
+            self.assertTrue(any('aggregate active-range fee accrual' in caveat for caveat in manifest['caveats']))
 
     @staticmethod
     def _write_csv(path: Path, rows: list[dict[str, str]]) -> None:

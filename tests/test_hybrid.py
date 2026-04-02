@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from saucerswap_v3_replay.backstop.v2_residual import ResidualQuote
+from saucerswap_v3_replay.fees import load_fee_policy
 from saucerswap_v3_replay.schema import ReplayUnit
 from saucerswap_v3_replay.sim.book_profile import allocate_depth
 from saucerswap_v3_replay.sim.hybrid import run_hybrid_lane, simulate_hybrid
@@ -15,8 +16,9 @@ class HybridSimulationTests(unittest.TestCase):
         levels = allocate_depth(1000.0, [(2, 1)])
         unit = ReplayUnit('u1', 't', 'tx', 1, 'buy', 20.0, 2000.0, 100.0)
         quote = ResidualQuote(execution_price=100.3, available_size=20.0)
+        fee_policy = load_fee_policy(Path('config/fees.yaml'))
 
-        record = simulate_hybrid(unit, levels, quote, max_slippage_bps=50)
+        record = simulate_hybrid(unit, levels, quote, max_slippage_bps=50, fee_policy=fee_policy)
 
         self.assertGreater(record.filled_size, 10.0)
         self.assertTrue(record.admissibility_passed)
@@ -26,8 +28,9 @@ class HybridSimulationTests(unittest.TestCase):
         levels = allocate_depth(1000.0, [(2, 1)])
         unit = ReplayUnit('u2', 't', 'tx', 2, 'buy', 20.0, 2000.0, 100.0)
         quote = ResidualQuote(execution_price=100.2, available_size=3.0)
+        fee_policy = load_fee_policy(Path('config/fees.yaml'))
 
-        record = simulate_hybrid(unit, levels, quote, max_slippage_bps=50)
+        record = simulate_hybrid(unit, levels, quote, max_slippage_bps=50, fee_policy=fee_policy)
 
         self.assertTrue(record.admissibility_passed)
         self.assertAlmostEqual(record.route_breakdown['v2_backstop'], 3.0)
@@ -38,8 +41,9 @@ class HybridSimulationTests(unittest.TestCase):
         levels = allocate_depth(1000.0, [(2, 1)])
         unit = ReplayUnit('u3', 't', 'tx', 3, 'buy', 20.0, 2000.0, 100.0)
         quote = ResidualQuote(execution_price=100.8, available_size=20.0)
+        fee_policy = load_fee_policy(Path('config/fees.yaml'))
 
-        record = simulate_hybrid(unit, levels, quote, max_slippage_bps=50)
+        record = simulate_hybrid(unit, levels, quote, max_slippage_bps=50, fee_policy=fee_policy)
 
         self.assertTrue(record.admissibility_passed)
         self.assertIn('v2_backstop', record.route_breakdown)
@@ -49,9 +53,10 @@ class HybridSimulationTests(unittest.TestCase):
         levels = allocate_depth(1000.0, [(2, 1)])
         unit = ReplayUnit('u4', 't', 'tx', 4, 'buy', 20.0, 2000.0, 100.0)
         bad_quote = ResidualQuote(execution_price=101.0, available_size=20.0)
+        fee_policy = load_fee_policy(Path('config/fees.yaml'))
 
-        rejected = simulate_hybrid(unit, levels, bad_quote, max_slippage_bps=50)
-        missing = simulate_hybrid(unit, levels, None, max_slippage_bps=50)
+        rejected = simulate_hybrid(unit, levels, bad_quote, max_slippage_bps=50, fee_policy=fee_policy)
+        missing = simulate_hybrid(unit, levels, None, max_slippage_bps=50, fee_policy=fee_policy)
 
         self.assertFalse(rejected.admissibility_passed)
         self.assertNotIn('v2_backstop', rejected.route_breakdown)
@@ -87,18 +92,7 @@ class HybridPipelineTests(unittest.TestCase):
             )
             self._write_text(
                 config_dir / 'fees.yaml',
-                '\n'.join(
-                    [
-                        'fees:',
-                        '  include_fees_in_headline: true',
-                        '  headline_metric_basis: "requested_notional"',
-                        '  filled_only_metrics: "supplemental_only"',
-                        '  source_fee_treatment: "historical_when_available"',
-                        '  missing_fee_policy: "flag_and_continue"',
-                        '  impute_missing_fees: false',
-                        '',
-                    ]
-                ),
+                Path('config/fees.yaml').read_text(encoding='utf-8'),
             )
 
             pure_rows = [
@@ -286,7 +280,9 @@ class HybridPipelineTests(unittest.TestCase):
             self.assertEqual(json.loads(routed_full['route_breakdown']), {'pure_book': 8.0, 'v2_backstop': 2.0})
             self.assertEqual(routed_full['completion_ratio'], '1')
             self.assertEqual(routed_full['remainder_size'], '0')
-            self.assertEqual(routed_full['fee_precision'], 'no_synthetic_or_blended_fee_model')
+            self.assertEqual(routed_full['fee_precision'], 'route_aware_modeled_from_locked_v2_v3_schedules')
+            self.assertEqual(routed_full['fee_scenario_id'], 'no_xsauce')
+            self.assertNotEqual(routed_full['fee_route_breakdown'], '')
 
             self.assertEqual(summary['row_counts']['hybrid_rows'], 4)
             self.assertEqual(summary['row_counts']['buy_rows'], 3)
@@ -308,6 +304,14 @@ class HybridPipelineTests(unittest.TestCase):
             self.assertEqual(summary['route_breakdown']['available_size_limited_rows'], 1)
             self.assertEqual(summary['route_breakdown']['v2_backstop_size_hbar'], '8')
             self.assertEqual(summary['fees']['fee_missing_rows'], 4)
+            self.assertEqual(summary['fees']['precise_fee_rows'], 4)
+            self.assertEqual(summary['fees']['default_scenario_id'], 'no_xsauce')
+            self.assertTrue(summary['fees']['recipient_reconciliation_pass'])
+            self.assertGreater(float(summary['fees']['default_rollup']['trader_fee_paid_usd']), 0.0)
+            self.assertGreater(
+                summary['fees']['default_rollup']['trader_fee_paid_bps_on_filled_notional'],
+                summary['fees']['scenario_rollups']['tier2_10pct']['trader_fee_paid_bps_on_filled_notional'],
+            )
             self.assertEqual(summary['amm_pre_trade_spot_gross_slippage_bps']['supported_rows'], 4)
             self.assertEqual(summary['coverage']['amm_pre_trade_spot_reference_supported_rows'], 4)
             self.assertTrue(summary['mapping']['fingerprint'])

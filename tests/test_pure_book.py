@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from saucerswap_v3_replay.baseline.v2_realized import observed_event_context_from_row
+from saucerswap_v3_replay.fees import load_fee_policy
 from saucerswap_v3_replay.schema import ReplayUnit
 from saucerswap_v3_replay.sim.book_profile import allocate_depth
 from saucerswap_v3_replay.sim.pure_book import (
@@ -28,11 +29,15 @@ class PureBookSimulationTests(unittest.TestCase):
         self.assertAlmostEqual(fill.avg_execution_price, 100.02)
         self.assertAlmostEqual(fill.remainder_size, 20.0 - expected_filled_size)
 
-        record = simulate_pure_book(unit, levels)
+        fee_policy = load_fee_policy(Path('config/fees.yaml'))
+        record = simulate_pure_book(unit, levels, fee_policy)
         self.assertAlmostEqual(record.completion_ratio, expected_filled_size / 20.0)
         self.assertAlmostEqual(record.filled_notional, 1000.0)
         self.assertLessEqual(record.filled_size, unit.requested_size)
         self.assertEqual(record.route_breakdown['pure_book'], record.filled_size)
+        self.assertEqual(record.fee_scenario_id, 'no_xsauce')
+        self.assertAlmostEqual(record.trader_fee_paid_usd, 12.0 / 10_000 * 1000.0)
+        self.assertAlmostEqual(record.maker_rebate_earned_usd, 0.2 / 10_000 * 1000.0)
 
     def test_build_pure_book_row_computes_weighted_execution_price_and_slippage_vs_reference(self):
         levels = allocate_depth(2000.0, [(2.0, 1.0), (4.0, 1.0)])
@@ -72,7 +77,8 @@ class PureBookSimulationTests(unittest.TestCase):
             }
         )
 
-        row = build_pure_book_row(unit, context, levels)
+        fee_policy = load_fee_policy(Path('config/fees.yaml'))
+        row = build_pure_book_row(unit, context, levels, fee_policy)
 
         first_level_size = 1000.0 / 100.02
         second_level_size = 15.0 - first_level_size
@@ -113,18 +119,7 @@ class PureBookPipelineTests(unittest.TestCase):
             )
             self._write_text(
                 root / 'config' / 'fees.yaml',
-                '\n'.join(
-                    [
-                        'fees:',
-                        '  include_fees_in_headline: true',
-                        '  headline_metric_basis: "requested_notional"',
-                        '  filled_only_metrics: "supplemental_only"',
-                        '  source_fee_treatment: "historical_when_available"',
-                        '  missing_fee_policy: "flag_and_continue"',
-                        '  impute_missing_fees: false',
-                        '',
-                    ]
-                ),
+                Path('config/fees.yaml').read_text(encoding='utf-8'),
             )
 
             self._write_csv(
@@ -225,7 +220,11 @@ class PureBookPipelineTests(unittest.TestCase):
                 first_lane_rows[0]['source_ordering_key'],
                 '1700000000:00000000000000000010:00000000000000000001',
             )
-            self.assertEqual(first_lane_rows[0]['fee_precision'], 'no_synthetic_fee_model')
+            self.assertEqual(first_lane_rows[0]['fee_precision'], 'modeled_from_locked_v3_schedule')
+            self.assertEqual(first_lane_rows[0]['fee_scenario_id'], 'no_xsauce')
+            self.assertEqual(first_lane_rows[0]['trader_fee_paid_usd'], '1.2')
+            self.assertEqual(first_lane_rows[0]['maker_rebate_earned_usd'], '0.02')
+            self.assertEqual(first_lane_rows[1]['v3_min_order_ineligible'], 'true')
             self.assertLess(float(first_lane_rows[0]['completion_ratio']), 1.0)
             self.assertGreater(float(first_lane_rows[0]['remainder_size']), 0.0)
             self.assertEqual(first_lane_rows[1]['completion_ratio'], '1')
@@ -247,6 +246,13 @@ class PureBookPipelineTests(unittest.TestCase):
             self.assertTrue(summary['book']['replenish_per_replay_unit'])
             self.assertEqual(summary['fees']['fee_covered_rows'], 1)
             self.assertEqual(summary['fees']['fee_missing_rows'], 1)
+            self.assertEqual(summary['fees']['precise_fee_rows'], 2)
+            self.assertEqual(summary['fees']['default_scenario_id'], 'no_xsauce')
+            self.assertEqual(summary['fees']['v3_min_order_ineligible_rows'], 1)
+            self.assertTrue(summary['fees']['recipient_reconciliation_pass'])
+            self.assertAlmostEqual(float(summary['fees']['default_rollup']['trader_fee_paid_usd']), 1.79988)
+            self.assertAlmostEqual(float(summary['fees']['default_rollup']['maker_rebate_earned_usd']), 0.029998)
+            self.assertAlmostEqual(float(summary['fees']['default_rollup']['protocol_fee_earned_usd']), 1.769882)
             self.assertEqual(summary['slippage_bps']['finite_rows'], 2)
             self.assertEqual(summary['slippage_bps']['excluded_zero_fill_rows'], 0)
             self.assertEqual(summary['amm_pre_trade_spot_gross_slippage_bps']['supported_rows'], 2)

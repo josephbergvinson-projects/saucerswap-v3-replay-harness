@@ -37,6 +37,15 @@ class ExecutionRecord:
     reference_price: float
     avg_execution_price: float
     fees_paid: float = 0.0
+    fee_contract_version: str = ''
+    fee_scenario_id: str = ''
+    v3_min_order_ineligible: bool = False
+    fee_basis_filled_notional_usd: float = 0.0
+    trader_fee_paid_usd: float = 0.0
+    protocol_fee_earned_usd: float = 0.0
+    active_lp_fee_earned_usd: float = 0.0
+    maker_rebate_earned_usd: float = 0.0
     remainder_size: float = 0.0
     route_breakdown: dict[str, float] = field(default_factory=dict)
+    fee_route_breakdown: dict[str, Any] = field(default_factory=dict)
     admissibility_passed: bool | None = None

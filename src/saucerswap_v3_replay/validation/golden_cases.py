@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from ..backstop.v2_residual import ResidualQuote
+from ..fees import load_fee_policy
 from ..metrics.core import slippage_bps
 from ..normalize.events import format_decimal, parse_float, parse_int
 from ..schema import ExecutionRecord, ReplayUnit
@@ -56,8 +57,10 @@ def evaluate_golden_cases(
     book_path: str | Path,
     flow_path: str | Path,
     expected_path: str | Path,
+    fee_config_path: str | Path | None = None,
 ) -> dict[str, Any]:
     book_profile = load_book_profile(book_path)
+    fee_policy = load_fee_policy(fee_config_path or Path('config/fees.yaml'))
     flow_cases = load_golden_case_flow(flow_path)
     expected_payload = json.loads(Path(expected_path).read_text(encoding='utf-8'))
     hybrid_rule = expected_payload.get('hybrid_rule', {})
@@ -71,6 +74,7 @@ def evaluate_golden_cases(
         actual = evaluate_case(
             case,
             book_profile=book_profile,
+            fee_policy=fee_policy,
             max_buy_slippage_bps=max_buy_slippage_bps,
             max_sell_slippage_bps=max_sell_slippage_bps,
         )
@@ -160,12 +164,13 @@ def evaluate_case(
     case: GoldenCase,
     *,
     book_profile: BookProfile,
+    fee_policy: dict[str, Any],
     max_buy_slippage_bps: float,
     max_sell_slippage_bps: float,
 ) -> dict[str, Any]:
     replay_unit = case.replay_unit
     if case.lane == PURE_BOOK_LANE:
-        record = simulate_pure_book(replay_unit, list(book_profile.levels))
+        record = simulate_pure_book(replay_unit, list(book_profile.levels), fee_policy)
     elif case.lane == HYBRID_LANE:
         record = simulate_hybrid(
             replay_unit,
@@ -174,6 +179,7 @@ def evaluate_case(
             max_slippage_bps=(
                 max_buy_slippage_bps if replay_unit.side == 'buy' else max_sell_slippage_bps
             ),
+            fee_policy=fee_policy,
         )
     else:
         raise ValueError(f'Unsupported golden-case lane: {case.lane}')

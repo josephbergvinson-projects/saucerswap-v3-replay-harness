@@ -188,6 +188,7 @@ class ValidationPolishPipelineTests(unittest.TestCase):
         fixture_dir.mkdir(parents=True, exist_ok=True)
 
         (config_dir / 'buckets.yaml').write_text(Path('config/buckets.yaml').read_text(encoding='utf-8'), encoding='utf-8')
+        (config_dir / 'fees.yaml').write_text(Path('config/fees.yaml').read_text(encoding='utf-8'), encoding='utf-8')
         (benchmark_dir / 'source-notes.md').write_text(
             '# Source notes\n\nTracked local benchmark contract for RH-09.\n',
             encoding='utf-8',

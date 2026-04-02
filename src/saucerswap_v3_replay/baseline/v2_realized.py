@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import csv
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -9,6 +9,14 @@ import math
 from pathlib import Path
 from typing import Any, Iterable, Iterator
 
+from ..fees import (
+    FeeRollupStats,
+    V2_FIXED_SCENARIO_ID,
+    add_record_fee_rollups,
+    build_fee_summary_payload,
+    build_v2_fee_fields,
+    load_fee_policy,
+)
 from ..metrics.core import (
     completion_ratio,
     reconstruct_amm_pre_trade_spot_reference,
@@ -32,6 +40,7 @@ NORMALIZED_EVENTS_FILENAME = 'normalized_events.csv'
 LANE_OUTPUT_FILENAME = 'lane_v2_baseline.csv'
 SUMMARY_FILENAME = 'v2_baseline_summary.json'
 MANIFEST_FILENAME = 'v2_baseline_manifest.json'
+FEE_CONFIG_FILENAME = 'fees.yaml'
 
 BASELINE_OUTPUT_FIELDNAMES = [
     'lane',
@@ -49,9 +58,18 @@ BASELINE_OUTPUT_FIELDNAMES = [
     'realized_slippage_bps',
     'amm_pre_trade_spot_gross_slippage_bps',
     'fees_paid',
+    'fee_contract_version',
+    'fee_scenario_id',
+    'v3_min_order_ineligible',
+    'fee_basis_filled_notional_usd',
+    'trader_fee_paid_usd',
+    'protocol_fee_earned_usd',
+    'active_lp_fee_earned_usd',
+    'maker_rebate_earned_usd',
     'fee_methodology',
     'fee_precision',
     'fee_covered',
+    'fee_route_breakdown',
     'remainder_size',
     'route_breakdown',
     'admissibility_passed',
@@ -69,15 +87,13 @@ BASELINE_OUTPUT_FIELDNAMES = [
 ]
 
 FEE_METHODOLOGY = (
-    'historical fee inputs are only available at pool/day coverage granularity in the current '
-    'materialized dataset; the lane preserves fee coverage visibility but does not allocate '
-    'unguarded per-replay-unit fees'
+    'RH-21 models V2 fee transfers from the locked RH-20 WHBAR/USDC schedule on filled notional: '
+    '15.0 bps trader fee, 12.5 bps active-LP accrual, and 2.5 bps protocol accrual.'
 )
-FEE_PRECISION = 'not_allocated_per_replay_unit'
+FEE_PRECISION = 'modeled_from_locked_v2_schedule'
 FEE_CAVEAT = (
-    'Per-replay-unit historical fees are not recoverable from the current Gigabrain fee inputs. '
-    'Lane records set fees_paid to 0.0 and expose fee_covered/day-coverage visibility explicitly '
-    'instead of silently imputing swap-level fees.'
+    'V2 liquidity-side fee output is aggregate active-range fee accrual under the locked WHBAR/USDC '
+    'schedule. It is not individual LP ROI, impermanent-loss analysis, or per-position profitability.'
 )
 
 
@@ -134,6 +150,7 @@ class BaselineStats:
     fee_covered_rows: int = 0
     fee_missing_rows: int = 0
     precise_fee_rows: int = 0
+    fee_rollups: FeeRollupStats = field(default_factory=FeeRollupStats)
     reference_price_fallback_rows: int = 0
     swap_metadata_covered_rows: int = 0
     swap_metadata_missing_rows: int = 0
@@ -181,13 +198,19 @@ class AlignmentState:
 def build_v2_realized_record(
     unit: ReplayUnit,
     execution_price: float,
-    fees_paid: float = 0.0,
+    fee_policy: dict[str, Any],
     *,
     filled_notional: float | None = None,
 ) -> ExecutionRecord:
     filled_size = unit.requested_size
     if filled_notional is None:
         filled_notional = unit.requested_notional
+    fee_fields = build_v2_fee_fields(
+        fee_policy,
+        filled_size=filled_size,
+        filled_notional=filled_notional,
+        route_name='v2',
+    )
     return ExecutionRecord(
         lane=LANE_NAME,
         replay_unit_id=unit.replay_unit_id,
@@ -199,9 +222,18 @@ def build_v2_realized_record(
         completion_ratio=completion_ratio(filled_size, unit.requested_size),
         reference_price=unit.reference_price,
         avg_execution_price=execution_price,
-        fees_paid=fees_paid,
+        fees_paid=fee_fields['fees_paid'],
+        fee_contract_version=fee_fields['fee_contract_version'],
+        fee_scenario_id=fee_fields['fee_scenario_id'],
+        v3_min_order_ineligible=fee_fields['v3_min_order_ineligible'],
+        fee_basis_filled_notional_usd=fee_fields['fee_basis_filled_notional_usd'],
+        trader_fee_paid_usd=fee_fields['trader_fee_paid_usd'],
+        protocol_fee_earned_usd=fee_fields['protocol_fee_earned_usd'],
+        active_lp_fee_earned_usd=fee_fields['active_lp_fee_earned_usd'],
+        maker_rebate_earned_usd=fee_fields['maker_rebate_earned_usd'],
         remainder_size=0.0,
         route_breakdown={'v2': filled_size},
+        fee_route_breakdown=fee_fields['fee_route_breakdown'],
         admissibility_passed=True,
     )
 
@@ -209,12 +241,14 @@ def build_v2_realized_record(
 def build_baseline_row(
     unit: ReplayUnit,
     context: ObservedEventContext,
+    fee_policy: dict[str, Any],
     *,
     replay_projection_verified: bool = True,
 ) -> BaselineRow:
     record = build_v2_realized_record(
         unit,
         execution_price=context.observed_execution_price,
+        fee_policy=fee_policy,
         filled_notional=unit.requested_notional,
     )
     realized_slippage = slippage_bps(unit.reference_price, record.avg_execution_price, unit.side)
@@ -249,7 +283,9 @@ def run_v2_realized_baseline(root: str | Path) -> V2RealizedBuildResult:
     interim_dir = repo_root / 'data' / 'interim'
     replay_units_path = interim_dir / REPLAY_UNITS_FILENAME
     normalized_events_path = interim_dir / NORMALIZED_EVENTS_FILENAME
-    _require_inputs([replay_units_path, normalized_events_path])
+    fee_config_path = repo_root / 'config' / FEE_CONFIG_FILENAME
+    _require_inputs([replay_units_path, normalized_events_path, fee_config_path])
+    fee_policy = load_fee_policy(fee_config_path)
 
     processed_dir = repo_root / 'data' / 'processed'
     processed_dir.mkdir(parents=True, exist_ok=True)
@@ -267,6 +303,7 @@ def run_v2_realized_baseline(root: str | Path) -> V2RealizedBuildResult:
             baseline_row = build_baseline_row(
                 aligned.replay_unit,
                 aligned.context,
+                fee_policy,
                 replay_projection_verified=aligned.replay_projection_verified,
             )
             writer.writerow(render_baseline_row(baseline_row))
@@ -281,16 +318,20 @@ def run_v2_realized_baseline(root: str | Path) -> V2RealizedBuildResult:
     summary = build_summary(
         replay_units_path=replay_units_path,
         normalized_events_path=normalized_events_path,
+        fee_config_path=fee_config_path,
         lane_output_path=lane_output_path,
         stats=stats,
+        fee_policy=fee_policy,
         mapping_fingerprint=mapping_fingerprint.hexdigest(),
     )
     manifest = build_manifest(
         replay_units_path=replay_units_path,
         normalized_events_path=normalized_events_path,
+        fee_config_path=fee_config_path,
         lane_output_path=lane_output_path,
         summary_path=summary_path,
         stats=stats,
+        fee_policy=fee_policy,
         summary=summary,
         mapping_fingerprint=mapping_fingerprint.hexdigest(),
     )
@@ -431,9 +472,18 @@ def render_baseline_row(row: BaselineRow) -> dict[str, str]:
         'realized_slippage_bps': format_decimal(row.realized_slippage_bps),
         'amm_pre_trade_spot_gross_slippage_bps': format_optional_decimal(row.amm_pre_trade_spot_gross_slippage_bps),
         'fees_paid': format_decimal(record.fees_paid),
+        'fee_contract_version': record.fee_contract_version,
+        'fee_scenario_id': record.fee_scenario_id,
+        'v3_min_order_ineligible': format_bool(record.v3_min_order_ineligible),
+        'fee_basis_filled_notional_usd': format_decimal(record.fee_basis_filled_notional_usd),
+        'trader_fee_paid_usd': format_decimal(record.trader_fee_paid_usd),
+        'protocol_fee_earned_usd': format_decimal(record.protocol_fee_earned_usd),
+        'active_lp_fee_earned_usd': format_decimal(record.active_lp_fee_earned_usd),
+        'maker_rebate_earned_usd': format_decimal(record.maker_rebate_earned_usd),
         'fee_methodology': FEE_METHODOLOGY,
         'fee_precision': FEE_PRECISION,
         'fee_covered': format_bool(context.fee_covered),
+        'fee_route_breakdown': json.dumps(record.fee_route_breakdown, sort_keys=True),
         'remainder_size': format_decimal(record.remainder_size),
         'route_breakdown': json.dumps(record.route_breakdown, sort_keys=True),
         'admissibility_passed': format_bool(bool(record.admissibility_passed)),
@@ -490,6 +540,10 @@ def update_stats(stats: BaselineStats, row: BaselineRow) -> None:
     else:
         stats.fee_missing_rows += 1
 
+    if record.fee_contract_version:
+        stats.precise_fee_rows += 1
+        add_record_fee_rollups(stats.fee_rollups, record)
+
     if context.reference_price_fallback:
         stats.reference_price_fallback_rows += 1
 
@@ -543,8 +597,10 @@ def build_summary(
     *,
     replay_units_path: Path,
     normalized_events_path: Path,
+    fee_config_path: Path,
     lane_output_path: Path,
     stats: BaselineStats,
+    fee_policy: dict[str, Any],
     mapping_fingerprint: str,
 ) -> dict[str, Any]:
     counts_reconciliation = reconcile_totals(stats.row_count, stats.row_count)
@@ -561,11 +617,12 @@ def build_summary(
                 'AMM pre-trade pool-spot gross convention with a symmetric reference denominator'
             ),
             'completion_basis': 'event_level_realized_unit',
-            'fee_treatment': 'flag_and_continue_when_per_swap_fees_are_not_grounded',
+            'fee_treatment': 'modeled_from_locked_v2_schedule_on_filled_notional',
         },
         'inputs': {
             'replay_units_path': str(replay_units_path),
             'normalized_events_path': str(normalized_events_path),
+            'fee_config_path': str(fee_config_path),
         },
         'outputs': {
             'lane_output_path': str(lane_output_path),
@@ -631,6 +688,13 @@ def build_summary(
             'fee_covered_rows': stats.fee_covered_rows,
             'fee_missing_rows': stats.fee_missing_rows,
             'precise_fee_rows': stats.precise_fee_rows,
+            **build_fee_summary_payload(
+                fee_rollups=stats.fee_rollups,
+                requested_notional_total=stats.requested_notional_raw_total / 1_000_000,
+                default_scenario_id=V2_FIXED_SCENARIO_ID,
+                supported_scenarios=[V2_FIXED_SCENARIO_ID],
+            ),
+            'policy': fee_policy,
             'caveat': FEE_CAVEAT,
         },
         'mapping': {
@@ -660,9 +724,11 @@ def build_manifest(
     *,
     replay_units_path: Path,
     normalized_events_path: Path,
+    fee_config_path: Path,
     lane_output_path: Path,
     summary_path: Path,
     stats: BaselineStats,
+    fee_policy: dict[str, Any],
     summary: dict[str, Any],
     mapping_fingerprint: str,
 ) -> dict[str, Any]:
@@ -675,6 +741,8 @@ def build_manifest(
             'replay_units_bytes': replay_units_path.stat().st_size,
             'normalized_events_path': str(normalized_events_path),
             'normalized_events_bytes': normalized_events_path.stat().st_size,
+            'fee_config_path': str(fee_config_path),
+            'fee_config_bytes': fee_config_path.stat().st_size,
         },
         'outputs': {
             'lane_output_path': str(lane_output_path),
@@ -693,7 +761,10 @@ def build_manifest(
             'replay_projection_missing_tail_rows': stats.replay_projection_missing_tail_rows,
         },
         'reconciliation': summary['reconciliation'],
-        'fees': summary['fees'],
+        'fees': {
+            **summary['fees'],
+            'policy': fee_policy,
+        },
         'caveats': build_caveats(stats),
     }
 
