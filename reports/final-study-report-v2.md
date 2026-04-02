@@ -8,9 +8,9 @@ The main execution result is clear. Both synthetic scenarios materially improve 
 
 The fee layer points in the same direction. Under the default no-xSAUCE schedule, explicit trader fees are about $5.89M for V2, $4.62M for book-only, and $4.66M for hybrid. V2 is the most expensive outcome for traders by a wide margin. Book-only is cheapest on explicit fees. Hybrid sits between the two because it keeps most flow on the lower-fee synthetic book while routing admissible residual size through the V2 backstop.
 
-Liquidity-side earnings also differ sharply across scenarios. V2 routes about $4.91M to active LPs. Book-only routes about $77.0k to makers. Hybrid routes the same $77.0k maker rebate plus about $34.5k of V2 LP accrual on the residual backstop, for about $111.5k total liquidity-side earnings. That split matters because hybrid improves completion relative to book-only without erasing the distinction between book maker economics and the legacy V2 LP fee path.
+The explicit liquidity-side fee transfer also differs sharply across scenarios, but these figures are not a full comparison of V2 LP return and V3 maker return. V2 routes about $4.91M of explicit fee accrual to active LPs. Book-only routes about $77.0k of explicit maker rebate. Hybrid routes the same $77.0k maker rebate plus about $34.5k of residual V2 LP accrual, for about $111.5k of explicit liquidity-side fee transfer. In the V3-style lanes, total maker economics would also depend on spread capture on filled resting quotes, which is outside the scope of this report.
 
-The tier-2 10% xSAUCE case lowers explicit trader fees further for the synthetic scenarios without changing execution quality. Aggregate trader fees fall to about $4.16M for book-only and $4.20M for hybrid. Liquidity-side earnings stay flat because the discount comes out of protocol take rather than maker rebates or LP accrual.
+The tier-2 10% xSAUCE case lowers explicit trader fees further for the synthetic scenarios without changing execution quality. Aggregate trader fees fall to about $4.16M for book-only and $4.20M for hybrid. In this retained model, the maker rebate and residual LP accrual stay flat because the discount comes out of protocol take rather than liquidity-side earnings.
 
 One source-basis caveat matters for interpretation. The execution tables in this report preserve the later RH-12 hybrid rerun that improved large-clip completion. The fee reconstruction uses the last retained structured reporting snapshot, because the matching structured lane outputs for the later hybrid rerun were not retained in the mounted workspace. The result is still decision-useful: the latest execution conclusion remains intact, and the fee layer is grounded in retained structured outputs rather than guessed or backfilled from memory.
 
@@ -34,7 +34,7 @@ That yields the following decision matrix:
 - On the same historical WHBAR/USDC flow, both synthetic V3-style scenarios improve price quality materially versus the V2 baseline.
 - The book-only scenario is too capacity-constrained on large clips.
 - The hybrid scenario materially closes that completion gap without giving back the slippage advantage.
-- The fee layer quantifies trader fees, maker rebates, active-LP accrual, protocol earnings, and xSAUCE tier effects across V2, book-only, and hybrid.
+- The fee layer quantifies explicit trader fees, explicit maker rebates, active-LP accrual, protocol earnings, and xSAUCE tier effects across V2, book-only, and hybrid.
 - The published Lambdaplex 15.47 bps AMM figure can be reproduced on our own V2 baseline using the AMM pre-trade spot gross parity proxy, which avoids a denominator mismatch when comparing the studies at a high level.
 
 ### What this study does not show
@@ -146,9 +146,17 @@ A secondary way to summarize the result is implied slippage cost per $1M of fill
 
 This cost framing is useful, but secondary. It mixes price quality and completion, so the decision rule still belongs to the combined price-plus-completion lens above.
 
-## Explicit fee economics
+## Explicit fee transfer layer
 
-### Headline explicit fee economics (`no_xsauce` default)
+This section reports only the explicit protocol-routed fee transfer layer. It is not a full comparison of V2 LP economics and V3 maker economics. In V2, liquidity compensation is primarily explicit swap-fee accrual to LP capital. In an order book, maker economics come primarily from spread capture on filled resting quotes, with rebates as a secondary tuning lever. The maker rebate shown here is therefore only the measured protocol transfer component, not total maker return.
+
+| Surface | V2 baseline | V3-style book lanes |
+| --- | --- | --- |
+| Primary liquidity monetization | Explicit LP fee accrual | Spread capture on filled resting quotes |
+| Explicit protocol transfer measured here | LP fee accrual | Maker rebate only |
+| Not measured here | LP ROI, inventory effects, capital efficiency | Spread capture, inventory PnL, quote quality, adverse selection |
+
+### Headline explicit fee transfer (`no_xsauce` default)
 
 | Scenario | Trader fee (USD) | Maker rebate (USD) | Active LP accrual (USD) | Liquidity-side total (USD) | Protocol earnings (USD) | Trader fee (bps, requested) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -156,11 +164,11 @@ This cost framing is useful, but secondary. It mixes price quality and completio
 | Book-only | $4,621,382.48 | $77,023.04 | $0.00 | $77,023.04 | $4,544,359.44 | 11.76 |
 | Hybrid | $4,662,788.54 | $77,023.04 | $34,505.05 | $111,528.09 | $4,551,260.45 | 11.87 |
 
-Takeaway: V2 is the most expensive outcome for traders by a wide margin. Book-only is the cheapest explicit-fee synthetic path. Hybrid remains much cheaper than V2, but it gives back some fee advantage versus book-only because the residual backstop inherits V2 fees.
+Takeaway: V2 is the most expensive outcome for traders by a wide margin. Book-only is the cheapest explicit-fee synthetic path. Hybrid remains much cheaper than V2, but it gives back some fee advantage versus book-only because the residual backstop inherits V2 fees. The liquidity-side columns here should be read as explicit protocol transfers only, not as a complete comparison of V2 LP return and V3 maker return.
 
-### Liquidity-side earnings
+### Explicit liquidity-side fee transfer (not full maker economics)
 
-The liquidity-side result is not just a footnote. The scenarios transfer fees to different recipients in very different proportions.
+The table below compares only the explicit liquidity-side fee transfer captured in the retained fee model. It does not measure total maker economics in the V3-style scenarios, because spread capture on filled quotes is outside the scope of this report.
 
 | Scenario | Maker rebate (USD) | Active LP accrual (USD) | Liquidity-side total (USD) |
 | --- | ---: | ---: | ---: |
@@ -170,13 +178,14 @@ The liquidity-side result is not just a footnote. The scenarios transfer fees to
 
 Interpretation:
 
-- V2 routes essentially the whole liquidity-side fee transfer to active LPs.
-- Book-only replaces LP accrual with a much smaller maker rebate stream.
-- Hybrid preserves the book maker rebate and adds a residual V2 LP accrual stream where the backstop actually fills.
+- V2 concentrates liquidity compensation in explicit LP fee accrual.
+- In the V3-style scenarios, the measured protocol transfer to makers is only the rebate component; it does not include spread capture or other maker-side economics.
+- Hybrid preserves the same explicit maker rebate on the book leg and adds residual V2 LP accrual where the backstop fills.
+- Lower rebate totals here should not be read as weaker maker incentives than V2 LP accrual; they reflect a different monetization model.
 
-That makes hybrid economically more informative than book-only on the liquidity side. It does not reproduce the V2 LP fee stream, but it does show where LP earnings persist once the residual V2 leg is allowed back into the execution path.
+That makes this section useful as a fee-routing comparison, not as a total liquidity-incentive ranking.
 
-### $25k+ explicit fee stress case (`no_xsauce` default)
+### $25k+ explicit fee transfer stress case (`no_xsauce` default)
 
 The fee story is especially informative in the same $25k+ bucket where the book-only scenario breaks down on completion.
 
@@ -190,7 +199,7 @@ Takeaway: on large clips, book-only is cheapest on explicit fees because it comp
 
 ## Tier-2 (10%) xSAUCE fee case
 
-The tier-2 xSAUCE case changes the fee schedule, not the execution path. Fill rate, completion, slippage, and remainder therefore stay the same. What changes is the allocation of explicit fees: traders pay less, protocol take falls, and liquidity-side earnings remain unchanged.
+The tier-2 xSAUCE case changes the fee schedule, not the execution path. Fill rate, completion, slippage, and remainder therefore stay the same. What changes is the allocation of explicit fees: traders pay less, protocol take falls, and the measured liquidity-side transfer remains unchanged. In this retained model, tier-2 xSAUCE lowers trader fees only; it does not change the modeled maker rebate.
 
 ### Aggregate tier-2 results
 
