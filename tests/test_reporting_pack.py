@@ -6,8 +6,16 @@ from pathlib import Path
 import tempfile
 import unittest
 
+from saucerswap_v3_replay.fees import (
+    build_hybrid_fee_fields,
+    build_v2_fee_fields,
+    build_v3_fee_fields,
+    load_fee_policy,
+    scenario_totals_from_breakdown,
+)
 from saucerswap_v3_replay.metrics.summaries import LaneObservation, roll_up_observations
 from saucerswap_v3_replay.normalize.events import format_decimal, format_scaled_int
+from saucerswap_v3_replay.reporting.fee_views import execution_shortfall_usd
 from saucerswap_v3_replay.reporting.pack import assign_bucket, load_bucket_config, run_reporting_pack
 
 
@@ -89,6 +97,10 @@ class ReportingPackTests(unittest.TestCase):
                 'aggregate': first.comparison_aggregate_path.read_text(encoding='utf-8'),
                 'bucket': first.comparison_by_bucket_path.read_text(encoding='utf-8'),
                 'side': first.comparison_by_side_path.read_text(encoding='utf-8'),
+                'fee_aggregate': first.fee_comparison_aggregate_path.read_text(encoding='utf-8'),
+                'fee_bucket': first.fee_comparison_by_bucket_path.read_text(encoding='utf-8'),
+                'fee_side': first.fee_comparison_by_side_path.read_text(encoding='utf-8'),
+                'fee_scenarios': first.fee_scenario_comparison_path.read_text(encoding='utf-8'),
                 'final_report': first.final_comparison_path.read_text(encoding='utf-8'),
                 'reconciliation': first.reconciliation_path.read_text(encoding='utf-8'),
                 'validation': first.validation_path.read_text(encoding='utf-8'),
@@ -99,6 +111,10 @@ class ReportingPackTests(unittest.TestCase):
                 'aggregate': second.comparison_aggregate_path.read_text(encoding='utf-8'),
                 'bucket': second.comparison_by_bucket_path.read_text(encoding='utf-8'),
                 'side': second.comparison_by_side_path.read_text(encoding='utf-8'),
+                'fee_aggregate': second.fee_comparison_aggregate_path.read_text(encoding='utf-8'),
+                'fee_bucket': second.fee_comparison_by_bucket_path.read_text(encoding='utf-8'),
+                'fee_side': second.fee_comparison_by_side_path.read_text(encoding='utf-8'),
+                'fee_scenarios': second.fee_scenario_comparison_path.read_text(encoding='utf-8'),
                 'final_report': second.final_comparison_path.read_text(encoding='utf-8'),
                 'reconciliation': second.reconciliation_path.read_text(encoding='utf-8'),
                 'validation': second.validation_path.read_text(encoding='utf-8'),
@@ -142,6 +158,38 @@ class ReportingPackTests(unittest.TestCase):
                 },
             )
 
+            fee_aggregate_rows = self._read_csv(result.fee_comparison_aggregate_path)
+            self.assertEqual(
+                [row['lane'] for row in fee_aggregate_rows],
+                ['v2_realized', '3a_pure_book', '3b_hybrid'],
+            )
+            self.assertEqual(fee_aggregate_rows[0]['trader_fee_paid_bps_on_requested_notional'], '15')
+            self.assertEqual(fee_aggregate_rows[1]['fee_precision'], 'modeled_from_locked_v3_schedule')
+            self.assertIn('maker rebates only', fee_aggregate_rows[1]['notes'])
+            self.assertIn('Blended route', fee_aggregate_rows[2]['notes'])
+
+            fee_scenario_rows = self._read_csv(result.fee_scenario_comparison_path)
+            self.assertEqual(
+                {(row['lane'], row['scenario_id']) for row in fee_scenario_rows},
+                {
+                    ('v2_realized', 'v2_fixed'),
+                    ('3a_pure_book', 'no_xsauce'),
+                    ('3a_pure_book', 'tier2_10pct'),
+                    ('3b_hybrid', 'no_xsauce'),
+                    ('3b_hybrid', 'tier2_10pct'),
+                },
+            )
+            hybrid_default = next(
+                row for row in fee_scenario_rows if row['lane'] == '3b_hybrid' and row['scenario_id'] == 'no_xsauce'
+            )
+            hybrid_discount = next(
+                row for row in fee_scenario_rows if row['lane'] == '3b_hybrid' and row['scenario_id'] == 'tier2_10pct'
+            )
+            self.assertGreater(
+                float(hybrid_default['all_in_trader_cost_bps_on_requested_notional']),
+                float(hybrid_discount['all_in_trader_cost_bps_on_requested_notional']),
+            )
+
             aggregate_rows = self._read_csv(result.comparison_aggregate_path)
             benchmark_row = next(row for row in aggregate_rows if row['lane'] == 'lambdaplex_published')
             self.assertEqual(benchmark_row['data_status'], 'placeholder')
@@ -155,6 +203,12 @@ class ReportingPackTests(unittest.TestCase):
                 [row['status'] for row in validation['validation']['lanes']],
                 ['pass', 'pass', 'pass'],
             )
+            self.assertEqual(
+                [row['default_fee_rollup_match'] for row in validation['validation']['lanes']],
+                ['true', 'true', 'true'],
+            )
+            self.assertIn('## Fee-inclusive economics', result.final_comparison_path.read_text(encoding='utf-8'))
+            self.assertIn('## xSAUCE fee scenario sensitivity', result.final_comparison_path.read_text(encoding='utf-8'))
 
     def test_reporting_pack_merges_comparable_benchmark_metrics_when_present(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -230,6 +284,8 @@ class ReportingPackTests(unittest.TestCase):
             ),
             encoding='utf-8',
         )
+        (config_dir / 'fees.yaml').write_text(Path('config/fees.yaml').read_text(encoding='utf-8'), encoding='utf-8')
+        fee_policy = load_fee_policy(config_dir / 'fees.yaml')
         self._write_benchmark_contract(
             benchmark_dir,
             benchmark_payload or self._benchmark_payload(),
@@ -259,6 +315,7 @@ class ReportingPackTests(unittest.TestCase):
                 source_ordering_key='1704067200:1:1',
                 base_volume_raw='500000000',
                 target_volume_raw='100000000000',
+                fee_fields=build_v2_fee_fields(fee_policy, filled_size=1000.0, filled_notional=500.0),
             ),
             self._lane_row(
                 lane='v2_realized',
@@ -283,6 +340,7 @@ class ReportingPackTests(unittest.TestCase):
                 source_ordering_key='1704067260:2:2',
                 base_volume_raw='1000000000',
                 target_volume_raw='200000000000',
+                fee_fields=build_v2_fee_fields(fee_policy, filled_size=2000.0, filled_notional=1000.0),
             ),
             self._lane_row(
                 lane='v2_realized',
@@ -307,6 +365,7 @@ class ReportingPackTests(unittest.TestCase):
                 source_ordering_key='1704067320:3:3',
                 base_volume_raw='25000000000',
                 target_volume_raw='4000000000000',
+                fee_fields=build_v2_fee_fields(fee_policy, filled_size=40000.0, filled_notional=25000.0),
             ),
         ]
 
@@ -334,6 +393,12 @@ class ReportingPackTests(unittest.TestCase):
                 source_ordering_key='1704067200:1:1',
                 base_volume_raw='500000000',
                 target_volume_raw='100000000000',
+                fee_fields=build_v3_fee_fields(
+                    fee_policy,
+                    requested_notional=500.0,
+                    filled_size=1000.0,
+                    filled_notional=499.0,
+                ),
             ),
             self._lane_row(
                 lane='3a_pure_book',
@@ -358,6 +423,12 @@ class ReportingPackTests(unittest.TestCase):
                 source_ordering_key='1704067260:2:2',
                 base_volume_raw='1000000000',
                 target_volume_raw='200000000000',
+                fee_fields=build_v3_fee_fields(
+                    fee_policy,
+                    requested_notional=1000.0,
+                    filled_size=1500.0,
+                    filled_notional=752.0,
+                ),
             ),
             self._lane_row(
                 lane='3a_pure_book',
@@ -382,6 +453,12 @@ class ReportingPackTests(unittest.TestCase):
                 source_ordering_key='1704067320:3:3',
                 base_volume_raw='25000000000',
                 target_volume_raw='4000000000000',
+                fee_fields=build_v3_fee_fields(
+                    fee_policy,
+                    requested_notional=25000.0,
+                    filled_size=20000.0,
+                    filled_notional=12550.0,
+                ),
             ),
         ]
 
@@ -409,6 +486,14 @@ class ReportingPackTests(unittest.TestCase):
                 source_ordering_key='1704067200:1:1',
                 base_volume_raw='500000000',
                 target_volume_raw='100000000000',
+                fee_fields=build_hybrid_fee_fields(
+                    fee_policy,
+                    requested_notional=500.0,
+                    pure_book_filled_size=1000.0,
+                    pure_book_filled_notional=499.0,
+                    v2_backstop_filled_size=0.0,
+                    v2_backstop_execution_price=None,
+                ),
             ),
             self._lane_row(
                 lane='3b_hybrid',
@@ -433,6 +518,14 @@ class ReportingPackTests(unittest.TestCase):
                 source_ordering_key='1704067260:2:2',
                 base_volume_raw='1000000000',
                 target_volume_raw='200000000000',
+                fee_fields=build_hybrid_fee_fields(
+                    fee_policy,
+                    requested_notional=1000.0,
+                    pure_book_filled_size=1500.0,
+                    pure_book_filled_notional=752.0,
+                    v2_backstop_filled_size=500.0,
+                    v2_backstop_execution_price=0.5,
+                ),
             ),
             self._lane_row(
                 lane='3b_hybrid',
@@ -457,6 +550,14 @@ class ReportingPackTests(unittest.TestCase):
                 source_ordering_key='1704067320:3:3',
                 base_volume_raw='25000000000',
                 target_volume_raw='4000000000000',
+                fee_fields=build_hybrid_fee_fields(
+                    fee_policy,
+                    requested_notional=25000.0,
+                    pure_book_filled_size=20000.0,
+                    pure_book_filled_notional=12550.0,
+                    v2_backstop_filled_size=5000.0,
+                    v2_backstop_execution_price=0.61,
+                ),
             ),
         ]
 
@@ -469,7 +570,7 @@ class ReportingPackTests(unittest.TestCase):
             self._build_summary(
                 baseline_rows,
                 row_count_key='baseline_rows',
-                fee_precision='not_allocated_per_replay_unit',
+                fee_precision='modeled_from_locked_v2_schedule',
                 include_remainder=False,
                 alignment_field='replay_projection_complete',
                 alignment_value=True,
@@ -485,7 +586,7 @@ class ReportingPackTests(unittest.TestCase):
             self._build_summary(
                 pure_book_rows,
                 row_count_key='pure_book_rows',
-                fee_precision='no_synthetic_fee_model',
+                fee_precision='modeled_from_locked_v3_schedule',
                 include_remainder=True,
                 alignment_field='replay_projection_complete',
                 alignment_value=True,
@@ -498,7 +599,7 @@ class ReportingPackTests(unittest.TestCase):
             self._build_summary(
                 hybrid_rows,
                 row_count_key='hybrid_rows',
-                fee_precision='no_synthetic_or_blended_fee_model',
+                fee_precision='route_aware_modeled_from_locked_v2_v3_schedules',
                 include_remainder=True,
                 alignment_field='input_alignment_verified',
                 alignment_value=True,
@@ -520,6 +621,7 @@ class ReportingPackTests(unittest.TestCase):
     ) -> dict[str, object]:
         requested_size_raw_total = sum(int(row['targetVolumeRaw']) for row in rows)
         requested_notional_raw_total = sum(int(row['baseVolumeRaw']) for row in rows)
+        requested_notional_total = requested_notional_raw_total / 1_000_000
         filled_size_total = sum(float(row['filled_size']) for row in rows)
         filled_notional_total = sum(float(row['filled_notional']) for row in rows)
         remainder_total = sum(float(row['remainder_size']) for row in rows)
@@ -544,6 +646,60 @@ class ReportingPackTests(unittest.TestCase):
         if parity_slippage_values:
             parity_slippage_avg = sum(parity_slippage_values) / len(parity_slippage_values)
             parity_slippage_avg_abs = sum(abs(value) for value in parity_slippage_values) / len(parity_slippage_values)
+
+        fee_basis_filled_total = sum(float(row.get('fee_basis_filled_notional_usd', '0') or '0') for row in rows)
+        default_trader_fee_total = sum(float(row.get('trader_fee_paid_usd', '0') or '0') for row in rows)
+        default_protocol_fee_total = sum(float(row.get('protocol_fee_earned_usd', '0') or '0') for row in rows)
+        default_active_lp_fee_total = sum(float(row.get('active_lp_fee_earned_usd', '0') or '0') for row in rows)
+        default_maker_rebate_total = sum(float(row.get('maker_rebate_earned_usd', '0') or '0') for row in rows)
+        v3_min_order_ineligible_rows = sum(1 for row in rows if row.get('v3_min_order_ineligible') == 'true')
+        default_scenario_id = next((str(row.get('fee_scenario_id', '')).strip() for row in rows if row.get('fee_scenario_id')), '')
+
+        scenario_accumulators: dict[str, dict[str, float]] = {}
+        for row in rows:
+            for scenario_id, payload in scenario_totals_from_breakdown(
+                json.loads(row.get('fee_route_breakdown', '{}') or '{}')
+            ).items():
+                accumulator = scenario_accumulators.setdefault(
+                    scenario_id,
+                    {
+                        'trader_fee_paid_usd': 0.0,
+                        'protocol_fee_earned_usd': 0.0,
+                        'active_lp_fee_earned_usd': 0.0,
+                        'maker_rebate_earned_usd': 0.0,
+                    },
+                )
+                for key in accumulator:
+                    accumulator[key] += float(payload.get(key, 0.0))
+
+        def _bps(amount: float, denominator: float) -> float:
+            if denominator <= 0:
+                return 0.0
+            return round((amount / denominator) * 10_000.0, 12)
+
+        def _rollup_payload(
+            *,
+            trader_fee_paid_total: float,
+            protocol_fee_earned_total: float,
+            active_lp_fee_earned_total: float,
+            maker_rebate_earned_total: float,
+        ) -> dict[str, object]:
+            return {
+                'fee_basis_filled_notional_usd': format_decimal(fee_basis_filled_total),
+                'requested_notional_usdc': format_decimal(requested_notional_total),
+                'trader_fee_paid_usd': format_decimal(trader_fee_paid_total),
+                'protocol_fee_earned_usd': format_decimal(protocol_fee_earned_total),
+                'active_lp_fee_earned_usd': format_decimal(active_lp_fee_earned_total),
+                'maker_rebate_earned_usd': format_decimal(maker_rebate_earned_total),
+                'trader_fee_paid_bps_on_filled_notional': _bps(trader_fee_paid_total, fee_basis_filled_total),
+                'protocol_fee_earned_bps_on_filled_notional': _bps(protocol_fee_earned_total, fee_basis_filled_total),
+                'active_lp_fee_earned_bps_on_filled_notional': _bps(active_lp_fee_earned_total, fee_basis_filled_total),
+                'maker_rebate_earned_bps_on_filled_notional': _bps(maker_rebate_earned_total, fee_basis_filled_total),
+                'trader_fee_paid_bps_on_requested_notional': _bps(trader_fee_paid_total, requested_notional_total),
+                'protocol_fee_earned_bps_on_requested_notional': _bps(protocol_fee_earned_total, requested_notional_total),
+                'active_lp_fee_earned_bps_on_requested_notional': _bps(active_lp_fee_earned_total, requested_notional_total),
+                'maker_rebate_earned_bps_on_requested_notional': _bps(maker_rebate_earned_total, requested_notional_total),
+            }
 
         totals = {
             'requested_size_hbar': format_scaled_int(requested_size_raw_total, 8),
@@ -586,6 +742,23 @@ class ReportingPackTests(unittest.TestCase):
                 'fee_precision': fee_precision,
                 'fee_covered_rows': fee_covered_rows,
                 'fee_missing_rows': fee_missing_rows,
+                'default_scenario_id': default_scenario_id,
+                'v3_min_order_ineligible_rows': v3_min_order_ineligible_rows,
+                'default_rollup': _rollup_payload(
+                    trader_fee_paid_total=default_trader_fee_total,
+                    protocol_fee_earned_total=default_protocol_fee_total,
+                    active_lp_fee_earned_total=default_active_lp_fee_total,
+                    maker_rebate_earned_total=default_maker_rebate_total,
+                ),
+                'scenario_rollups': {
+                    scenario_id: _rollup_payload(
+                        trader_fee_paid_total=payload['trader_fee_paid_usd'],
+                        protocol_fee_earned_total=payload['protocol_fee_earned_usd'],
+                        active_lp_fee_earned_total=payload['active_lp_fee_earned_usd'],
+                        maker_rebate_earned_total=payload['maker_rebate_earned_usd'],
+                    )
+                    for scenario_id, payload in scenario_accumulators.items()
+                },
             },
             'mapping': mapping,
             'reconciliation': reconciliation,
@@ -689,6 +862,7 @@ class ReportingPackTests(unittest.TestCase):
         source_ordering_key: str,
         base_volume_raw: str,
         target_volume_raw: str,
+        fee_fields: dict[str, object],
         parity_slippage_value: str = '',
     ) -> dict[str, str]:
         row = {
@@ -704,10 +878,19 @@ class ReportingPackTests(unittest.TestCase):
             'reference_price': reference_price,
             'amm_pre_trade_spot_reference_price': reference_price,
             'avg_execution_price': avg_execution_price,
-            'fees_paid': '0',
+            'fees_paid': format_decimal(float(fee_fields.get('fees_paid', 0.0))),
+            'fee_contract_version': str(fee_fields.get('fee_contract_version', '')),
+            'fee_scenario_id': str(fee_fields.get('fee_scenario_id', '')),
+            'v3_min_order_ineligible': 'true' if bool(fee_fields.get('v3_min_order_ineligible', False)) else 'false',
+            'fee_basis_filled_notional_usd': format_decimal(float(fee_fields.get('fee_basis_filled_notional_usd', 0.0))),
+            'trader_fee_paid_usd': format_decimal(float(fee_fields.get('trader_fee_paid_usd', 0.0))),
+            'protocol_fee_earned_usd': format_decimal(float(fee_fields.get('protocol_fee_earned_usd', 0.0))),
+            'active_lp_fee_earned_usd': format_decimal(float(fee_fields.get('active_lp_fee_earned_usd', 0.0))),
+            'maker_rebate_earned_usd': format_decimal(float(fee_fields.get('maker_rebate_earned_usd', 0.0))),
             'fee_methodology': 'test',
             'fee_precision': 'test',
             'fee_covered': fee_covered,
+            'fee_route_breakdown': json.dumps(fee_fields.get('fee_route_breakdown', {}), sort_keys=True),
             'remainder_size': remainder_size,
             'route_breakdown': '{}',
             'admissibility_passed': admissibility_passed,

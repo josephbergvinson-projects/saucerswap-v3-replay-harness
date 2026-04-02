@@ -12,10 +12,25 @@ from ..benchmarks.lambdaplex import PublishedBenchmarkStatus, load_published_ben
 from ..metrics.summaries import LaneObservation, RollupSummary, roll_up_observations
 from ..normalize.events import parse_float, parse_int, parse_optional_float
 from ..settings import _load_yaml_payload
+from .fee_views import (
+    FeeObservation,
+    FeeRollupSummary,
+    approximately_matches_fee_rollup,
+    execution_shortfall_usd,
+    fee_observation_from_row,
+    fee_rollup_from_summary_payload,
+    roll_up_fee_observations,
+)
 from .tables import (
     AGGREGATE_FIELDNAMES,
+    FEE_AGGREGATE_FIELDNAMES,
+    FEE_SCENARIO_FIELDNAMES,
+    FEE_SEGMENT_FIELDNAMES,
     SEGMENT_FIELDNAMES,
     build_aggregate_rows,
+    build_fee_aggregate_rows,
+    build_fee_scenario_rows,
+    build_fee_segment_rows,
     build_segment_rows,
     render_final_comparison_report,
     render_reconciliation_report,
@@ -28,6 +43,10 @@ BENCHMARK_FILENAME = 'published-results.json'
 COMPARISON_AGGREGATE_FILENAME = 'comparison_aggregate.csv'
 COMPARISON_BY_BUCKET_FILENAME = 'comparison_by_bucket.csv'
 COMPARISON_BY_SIDE_FILENAME = 'comparison_by_side.csv'
+FEE_COMPARISON_AGGREGATE_FILENAME = 'comparison_fees_aggregate.csv'
+FEE_COMPARISON_BY_BUCKET_FILENAME = 'comparison_fees_by_bucket.csv'
+FEE_COMPARISON_BY_SIDE_FILENAME = 'comparison_fees_by_side.csv'
+FEE_SCENARIO_COMPARISON_FILENAME = 'comparison_fee_scenarios.csv'
 SUMMARY_FILENAME = 'reporting_pack_summary.json'
 MANIFEST_FILENAME = 'reporting_pack_manifest.json'
 FINAL_COMPARISON_REPORT = 'final-comparison.md'
@@ -37,6 +56,7 @@ UNBUCKETED_LABEL = 'unbucketed'
 
 LANE_ORDER = ['v2_realized', '3a_pure_book', '3b_hybrid']
 SIDE_ORDER = ['buy', 'sell']
+SCENARIO_ORDER = ['v2_fixed', 'no_xsauce', 'tier2_10pct']
 LANE_LABELS = {
     'v2_realized': 'V2 baseline',
     '3a_pure_book': '3A pure-book',
@@ -86,8 +106,11 @@ class BucketConfig:
 @dataclass(frozen=True)
 class LaneArtifacts:
     aggregate: RollupSummary
+    fee_aggregate: FeeRollupSummary
     by_side: dict[str, RollupSummary]
+    fee_by_side: dict[str, FeeRollupSummary]
     by_bucket: dict[str, RollupSummary]
+    fee_by_bucket: dict[str, FeeRollupSummary]
     summary: dict[str, Any]
     manifest: dict[str, Any]
 
@@ -97,6 +120,10 @@ class ReportingPackBuildResult:
     comparison_aggregate_path: Path
     comparison_by_bucket_path: Path
     comparison_by_side_path: Path
+    fee_comparison_aggregate_path: Path
+    fee_comparison_by_bucket_path: Path
+    fee_comparison_by_side_path: Path
+    fee_scenario_comparison_path: Path
     final_comparison_path: Path
     reconciliation_path: Path
     validation_path: Path
@@ -180,15 +207,31 @@ def run_reporting_pack(root: str | Path) -> ReportingPackBuildResult:
             bucket_config=bucket_config,
             reporting_config=reporting_config,
         )
+        fee_aggregate, fee_by_side, fee_by_bucket = roll_up_fee_lane(
+            processed_dir / spec.csv_filename,
+            bucket_config=bucket_config,
+            reporting_config=reporting_config,
+        )
         lane_artifacts[spec.lane] = LaneArtifacts(
             aggregate=aggregate,
+            fee_aggregate=fee_aggregate,
             by_side=by_side,
+            fee_by_side=fee_by_side,
             by_bucket=by_bucket,
+            fee_by_bucket=fee_by_bucket,
             summary=lane_summary,
             manifest=lane_manifest,
         )
     authoritative_aggregates = {
         spec.lane: aggregate_from_summary(spec, lane_artifacts[spec.lane])
+        for spec in LANE_SPECS
+    }
+    authoritative_fee_aggregates = {
+        spec.lane: fee_aggregate_from_summary(spec, lane_artifacts[spec.lane])
+        for spec in LANE_SPECS
+    }
+    scenario_fee_rollups = {
+        spec.lane: scenario_fee_rollups_from_summary(spec, lane_artifacts[spec.lane])
         for spec in LANE_SPECS
     }
 
@@ -203,11 +246,27 @@ def run_reporting_pack(root: str | Path) -> ReportingPackBuildResult:
         lane_notes=LANE_NOTES,
         benchmark_status=benchmark_status,
     )
+    fee_aggregate_rows = build_fee_aggregate_rows(
+        lane_order=LANE_ORDER,
+        lane_labels=LANE_LABELS,
+        lane_fee_rollups=authoritative_fee_aggregates,
+        lane_fee_precision={
+            lane: str(artifact.summary.get('fees', {}).get('fee_precision', ''))
+            for lane, artifact in lane_artifacts.items()
+        },
+        lane_notes={lane: build_fee_lane_note(lane, artifact) for lane, artifact in lane_artifacts.items()},
+    )
     side_rows = build_segment_rows(
         segment_order=SIDE_ORDER,
         lane_order=LANE_ORDER,
         lane_labels=LANE_LABELS,
         lane_segment_rollups={lane: artifact.by_side for lane, artifact in lane_artifacts.items()},
+    )
+    fee_side_rows = build_fee_segment_rows(
+        segment_order=SIDE_ORDER,
+        lane_order=LANE_ORDER,
+        lane_labels=LANE_LABELS,
+        lane_segment_rollups={lane: artifact.fee_by_side for lane, artifact in lane_artifacts.items()},
     )
     bucket_rows = build_segment_rows(
         segment_order=[bucket.label for bucket in bucket_config.buckets] + [UNBUCKETED_LABEL],
@@ -215,10 +274,27 @@ def run_reporting_pack(root: str | Path) -> ReportingPackBuildResult:
         lane_labels=LANE_LABELS,
         lane_segment_rollups={lane: artifact.by_bucket for lane, artifact in lane_artifacts.items()},
     )
+    fee_bucket_rows = build_fee_segment_rows(
+        segment_order=[bucket.label for bucket in bucket_config.buckets] + [UNBUCKETED_LABEL],
+        lane_order=LANE_ORDER,
+        lane_labels=LANE_LABELS,
+        lane_segment_rollups={lane: artifact.fee_by_bucket for lane, artifact in lane_artifacts.items()},
+    )
+    fee_scenario_rows = build_fee_scenario_rows(
+        lane_order=LANE_ORDER,
+        lane_labels=LANE_LABELS,
+        lane_scenario_rollups=scenario_fee_rollups,
+        scenario_order=SCENARIO_ORDER,
+        lane_notes={lane: build_fee_lane_note(lane, artifact) for lane, artifact in lane_artifacts.items()},
+    )
 
     comparison_aggregate_path = processed_dir / COMPARISON_AGGREGATE_FILENAME
     comparison_by_bucket_path = processed_dir / COMPARISON_BY_BUCKET_FILENAME
     comparison_by_side_path = processed_dir / COMPARISON_BY_SIDE_FILENAME
+    fee_comparison_aggregate_path = processed_dir / FEE_COMPARISON_AGGREGATE_FILENAME
+    fee_comparison_by_bucket_path = processed_dir / FEE_COMPARISON_BY_BUCKET_FILENAME
+    fee_comparison_by_side_path = processed_dir / FEE_COMPARISON_BY_SIDE_FILENAME
+    fee_scenario_comparison_path = processed_dir / FEE_SCENARIO_COMPARISON_FILENAME
     summary_path = processed_dir / SUMMARY_FILENAME
     manifest_path = processed_dir / MANIFEST_FILENAME
     final_comparison_path = reports_dir / FINAL_COMPARISON_REPORT
@@ -228,6 +304,10 @@ def run_reporting_pack(root: str | Path) -> ReportingPackBuildResult:
     write_csv(comparison_aggregate_path, AGGREGATE_FIELDNAMES, aggregate_rows)
     write_csv(comparison_by_bucket_path, SEGMENT_FIELDNAMES, bucket_rows)
     write_csv(comparison_by_side_path, SEGMENT_FIELDNAMES, side_rows)
+    write_csv(fee_comparison_aggregate_path, FEE_AGGREGATE_FIELDNAMES, fee_aggregate_rows)
+    write_csv(fee_comparison_by_bucket_path, FEE_SEGMENT_FIELDNAMES, fee_bucket_rows)
+    write_csv(fee_comparison_by_side_path, FEE_SEGMENT_FIELDNAMES, fee_side_rows)
+    write_csv(fee_scenario_comparison_path, FEE_SCENARIO_FIELDNAMES, fee_scenario_rows)
 
     validation_rows = [build_validation_row(spec, lane_artifacts[spec.lane]) for spec in LANE_SPECS]
     reconciliation_rows = [build_reconciliation_row(spec, lane_artifacts[spec.lane]) for spec in LANE_SPECS]
@@ -245,8 +325,12 @@ def run_reporting_pack(root: str | Path) -> ReportingPackBuildResult:
     final_comparison_path.write_text(
         render_final_comparison_report(
             aggregate_rows=aggregate_rows,
+            fee_aggregate_rows=fee_aggregate_rows,
             side_rows=side_rows,
+            fee_side_rows=fee_side_rows,
             bucket_rows=bucket_rows,
+            fee_bucket_rows=fee_bucket_rows,
+            fee_scenario_rows=fee_scenario_rows,
             benchmark_status=benchmark_status,
             caveats=build_report_caveats(benchmark_status),
         ),
@@ -285,6 +369,10 @@ def run_reporting_pack(root: str | Path) -> ReportingPackBuildResult:
             'comparison_aggregate_path': str(comparison_aggregate_path),
             'comparison_by_bucket_path': str(comparison_by_bucket_path),
             'comparison_by_side_path': str(comparison_by_side_path),
+            'fee_comparison_aggregate_path': str(fee_comparison_aggregate_path),
+            'fee_comparison_by_bucket_path': str(fee_comparison_by_bucket_path),
+            'fee_comparison_by_side_path': str(fee_comparison_by_side_path),
+            'fee_scenario_comparison_path': str(fee_scenario_comparison_path),
             'final_comparison_path': str(final_comparison_path),
             'reconciliation_path': str(reconciliation_path),
             'validation_path': str(validation_path),
@@ -297,6 +385,19 @@ def run_reporting_pack(root: str | Path) -> ReportingPackBuildResult:
                 'authoritative_aggregate': serialize_rollup_summary(authoritative_aggregates[lane]),
                 'by_side': {key: serialize_rollup_summary(value) for key, value in artifact.by_side.items()},
                 'by_bucket': {key: serialize_rollup_summary(value) for key, value in artifact.by_bucket.items()},
+            }
+            for lane, artifact in lane_artifacts.items()
+        },
+        'fee_lane_rollups': {
+            lane: {
+                'aggregate': serialize_fee_rollup_summary(artifact.fee_aggregate),
+                'authoritative_aggregate': serialize_fee_rollup_summary(authoritative_fee_aggregates[lane]),
+                'by_side': {key: serialize_fee_rollup_summary(value) for key, value in artifact.fee_by_side.items()},
+                'by_bucket': {key: serialize_fee_rollup_summary(value) for key, value in artifact.fee_by_bucket.items()},
+                'by_scenario': {
+                    key: serialize_fee_rollup_summary(value)
+                    for key, value in scenario_fee_rollups[lane].items()
+                },
             }
             for lane, artifact in lane_artifacts.items()
         },
@@ -320,6 +421,10 @@ def run_reporting_pack(root: str | Path) -> ReportingPackBuildResult:
             comparison_aggregate_path,
             comparison_by_bucket_path,
             comparison_by_side_path,
+            fee_comparison_aggregate_path,
+            fee_comparison_by_bucket_path,
+            fee_comparison_by_side_path,
+            fee_scenario_comparison_path,
             final_comparison_path,
             reconciliation_path,
             validation_path,
@@ -335,6 +440,10 @@ def run_reporting_pack(root: str | Path) -> ReportingPackBuildResult:
         comparison_aggregate_path=comparison_aggregate_path,
         comparison_by_bucket_path=comparison_by_bucket_path,
         comparison_by_side_path=comparison_by_side_path,
+        fee_comparison_aggregate_path=fee_comparison_aggregate_path,
+        fee_comparison_by_bucket_path=fee_comparison_by_bucket_path,
+        fee_comparison_by_side_path=fee_comparison_by_side_path,
+        fee_scenario_comparison_path=fee_scenario_comparison_path,
         final_comparison_path=final_comparison_path,
         reconciliation_path=reconciliation_path,
         validation_path=validation_path,
@@ -455,6 +564,27 @@ def roll_up_lane(
     return aggregate, by_side, by_bucket
 
 
+def roll_up_fee_lane(
+    csv_path: Path,
+    *,
+    bucket_config: BucketConfig,
+    reporting_config: ReportingConfig,
+) -> tuple[FeeRollupSummary, dict[str, FeeRollupSummary], dict[str, FeeRollupSummary]]:
+    bucket_label = None
+    if reporting_config.include_bucket_split:
+        bucket_label = lambda observation: assign_bucket(bucket_config, observation.requested_notional)
+
+    aggregate, by_side, by_bucket = roll_up_fee_observations(
+        iter_fee_observations(csv_path),
+        bucket_label=bucket_label,
+    )
+    if not reporting_config.include_side_split:
+        by_side = {}
+    if not reporting_config.include_bucket_split:
+        by_bucket = {}
+    return aggregate, by_side, by_bucket
+
+
 def iter_lane_observations(csv_path: Path, *, slippage_field: str) -> Iterator[LaneObservation]:
     with csv_path.open('r', encoding='utf-8', newline='') as handle:
         reader = csv.DictReader(handle)
@@ -479,6 +609,13 @@ def iter_lane_observations(csv_path: Path, *, slippage_field: str) -> Iterator[L
                     row.get('amm_pre_trade_spot_gross_slippage_bps')
                 ),
             )
+
+
+def iter_fee_observations(csv_path: Path) -> Iterator[FeeObservation]:
+    with csv_path.open('r', encoding='utf-8', newline='') as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            yield fee_observation_from_row(row)
 
 
 def assign_bucket(bucket_config: BucketConfig, requested_notional: float) -> str:
@@ -518,6 +655,10 @@ def build_validation_row(spec: LaneInputSpec, artifacts: LaneArtifacts) -> dict[
         aggregate.fee_covered_rows == int(summary['fees']['fee_covered_rows'])
         and aggregate.fee_missing_rows == int(summary['fees']['fee_missing_rows'])
     )
+    default_fee_rollup_match = approximately_matches_fee_rollup(
+        artifacts.fee_aggregate,
+        fee_aggregate_from_summary(spec, artifacts),
+    )
 
     checks = [
         row_count_matches,
@@ -525,6 +666,7 @@ def build_validation_row(spec: LaneInputSpec, artifacts: LaneArtifacts) -> dict[
         filled_totals_match,
         completion_counts_match,
         fee_coverage_match,
+        default_fee_rollup_match,
     ]
     status = 'pass' if all(checks) else 'fail'
     return {
@@ -535,6 +677,7 @@ def build_validation_row(spec: LaneInputSpec, artifacts: LaneArtifacts) -> dict[
         'filled_totals_match': bool_text(filled_totals_match),
         'completion_counts_match': bool_text(completion_counts_match),
         'fee_coverage_match': bool_text(fee_coverage_match),
+        'default_fee_rollup_match': bool_text(default_fee_rollup_match),
         'status': status,
     }
 
@@ -568,6 +711,8 @@ def build_global_checks(
         f'Bucket split enabled in config/reporting.yaml: {bool_text(reporting_config.include_bucket_split)}.',
         f'Bucket basis from config/buckets.yaml: `{bucket_config.basis}` with semantics `{bucket_config.edge_semantics}`.',
         f'All direct lane rollups matched mounted lane summaries: {bool_text(all_pass)}.',
+        'Execution-quality tables and fee-inclusive tables are emitted as separate surfaces; fee views do not replace the canonical study slippage surfaces.',
+        'Fee-inclusive headline comparisons are normalized by requested notional; filled-notional fee bps remain supplemental diagnostics in the CSV outputs.',
         'Canonical `avg_slippage_bps` remains the external-reference study metric; '
         '`avg_amm_pre_trade_spot_gross_slippage_bps` is surfaced separately as a Lambdaplex-parity proxy.',
     ]
@@ -624,11 +769,63 @@ def aggregate_from_summary(spec: LaneInputSpec, artifacts: LaneArtifacts) -> Rol
     )
 
 
+def fee_aggregate_from_summary(spec: LaneInputSpec, artifacts: LaneArtifacts) -> FeeRollupSummary:
+    summary = artifacts.summary
+    direct = artifacts.fee_aggregate
+    return fee_rollup_from_summary_payload(
+        row_count=int(summary['row_counts'][spec.row_count_key]),
+        requested_notional_raw_total=direct.requested_notional_raw_total,
+        execution_shortfall_total=direct.execution_shortfall_total,
+        v3_min_order_ineligible_rows=int(summary['fees'].get('v3_min_order_ineligible_rows', 0)),
+        payload=summary['fees']['default_rollup'],
+    )
+
+
+def scenario_fee_rollups_from_summary(
+    spec: LaneInputSpec,
+    artifacts: LaneArtifacts,
+) -> dict[str, FeeRollupSummary]:
+    summary = artifacts.summary
+    direct = artifacts.fee_aggregate
+    scenario_payloads = summary.get('fees', {}).get('scenario_rollups', {})
+    return {
+        scenario_id: fee_rollup_from_summary_payload(
+            row_count=int(summary['row_counts'][spec.row_count_key]),
+            requested_notional_raw_total=direct.requested_notional_raw_total,
+            execution_shortfall_total=direct.execution_shortfall_total,
+            v3_min_order_ineligible_rows=int(summary['fees'].get('v3_min_order_ineligible_rows', 0)),
+            payload=payload,
+        )
+        for scenario_id, payload in scenario_payloads.items()
+        if isinstance(payload, dict)
+    }
+
+
+def build_fee_lane_note(lane: str, artifacts: LaneArtifacts) -> str:
+    notes: list[str] = []
+    summary_fees = artifacts.summary.get('fees', {})
+    if lane == 'v2_realized':
+        notes.append('Fixed V2 fee split: active-LP accrual plus protocol cut.')
+    elif lane == '3a_pure_book':
+        notes.append('Liquidity-side earnings are maker rebates only.')
+    elif lane == '3b_hybrid':
+        notes.append('Blended route: V3 pure-book fees plus V2 residual-backstop fees when routed.')
+    default_scenario = str(summary_fees.get('default_scenario_id', '')).strip()
+    if default_scenario:
+        notes.append(f'Default reported V3 scenario: {default_scenario}.')
+    ineligible_rows = int(summary_fees.get('v3_min_order_ineligible_rows', 0) or 0)
+    if ineligible_rows > 0:
+        notes.append(f'V3 min-order ineligible rows surfaced separately: {ineligible_rows}.')
+    return ' '.join(notes).strip()
+
+
 def build_report_caveats(benchmark_status: PublishedBenchmarkStatus) -> list[str]:
     caveats = [
         'This pack is an event-level replay benchmark, not an order-level reconstruction or production-fidelity V3 simulator.',
         'The reporting path reuses mounted RH-03, RH-04, RH-05, and RH-06 artifacts as read-only inputs and does not rebuild those layers.',
         'Fee outputs use the locked RH-20 contract: V2 applies the fixed WHBAR/USDC trader/LP/protocol split, 3A applies the locked V3 scenarios on pure-book filled notional, and 3B blends V3 pure-book fees with V2 residual-backstop fees when applicable.',
+        'All-in trader cost is reported as execution shortfall on filled size plus explicit trader fees, with headline normalization on requested notional for completion-aware comparisons.',
+        'V2 liquidity-side fee output is aggregate active-LP fee accrual, not LP ROI; V3 liquidity-side fee output is maker rebate capture, not full maker PnL.',
         'Canonical `avg_slippage_bps` remains the study-owned external-reference metric. '
         '`avg_amm_pre_trade_spot_gross_slippage_bps` is a separate Lambdaplex-parity proxy based on the RH-13 '
         'best-supported reconstructed AMM pre-trade pool spot plus a symmetric reference denominator.',
@@ -679,6 +876,10 @@ def build_manifest_outputs(
     comparison_aggregate_path: Path,
     comparison_by_bucket_path: Path,
     comparison_by_side_path: Path,
+    fee_comparison_aggregate_path: Path,
+    fee_comparison_by_bucket_path: Path,
+    fee_comparison_by_side_path: Path,
+    fee_scenario_comparison_path: Path,
     final_comparison_path: Path,
     reconciliation_path: Path,
     validation_path: Path,
@@ -692,6 +893,14 @@ def build_manifest_outputs(
         'comparison_by_bucket_bytes': comparison_by_bucket_path.stat().st_size,
         'comparison_by_side_path': str(comparison_by_side_path),
         'comparison_by_side_bytes': comparison_by_side_path.stat().st_size,
+        'fee_comparison_aggregate_path': str(fee_comparison_aggregate_path),
+        'fee_comparison_aggregate_bytes': fee_comparison_aggregate_path.stat().st_size,
+        'fee_comparison_by_bucket_path': str(fee_comparison_by_bucket_path),
+        'fee_comparison_by_bucket_bytes': fee_comparison_by_bucket_path.stat().st_size,
+        'fee_comparison_by_side_path': str(fee_comparison_by_side_path),
+        'fee_comparison_by_side_bytes': fee_comparison_by_side_path.stat().st_size,
+        'fee_scenario_comparison_path': str(fee_scenario_comparison_path),
+        'fee_scenario_comparison_bytes': fee_scenario_comparison_path.stat().st_size,
         'final_comparison_path': str(final_comparison_path),
         'final_comparison_bytes': final_comparison_path.stat().st_size,
         'reconciliation_path': str(reconciliation_path),
@@ -732,6 +941,30 @@ def serialize_rollup_summary(rollup: RollupSummary) -> dict[str, Any]:
         'admissibility_pass_rows': rollup.admissibility_pass_rows,
         'admissibility_fail_rows': rollup.admissibility_fail_rows,
         'admissibility_unknown_rows': rollup.admissibility_unknown_rows,
+    }
+
+
+def serialize_fee_rollup_summary(rollup: FeeRollupSummary) -> dict[str, Any]:
+    return {
+        'row_count': rollup.row_count,
+        'requested_notional_raw_total': rollup.requested_notional_raw_total,
+        'fee_basis_filled_notional_total': rollup.fee_basis_filled_notional_total,
+        'trader_fee_paid_total': rollup.trader_fee_paid_total,
+        'protocol_fee_earned_total': rollup.protocol_fee_earned_total,
+        'active_lp_fee_earned_total': rollup.active_lp_fee_earned_total,
+        'maker_rebate_earned_total': rollup.maker_rebate_earned_total,
+        'liquidity_side_fee_earned_total': rollup.liquidity_side_fee_earned_total,
+        'execution_shortfall_total': rollup.execution_shortfall_total,
+        'all_in_trader_cost_total': rollup.all_in_trader_cost_total,
+        'v3_min_order_ineligible_rows': rollup.v3_min_order_ineligible_rows,
+        'trader_fee_paid_bps_on_requested_notional': rollup.trader_fee_paid_bps_on_requested_notional,
+        'trader_fee_paid_bps_on_filled_notional': rollup.trader_fee_paid_bps_on_filled_notional,
+        'liquidity_side_fee_earned_bps_on_requested_notional': (
+            rollup.liquidity_side_fee_earned_bps_on_requested_notional
+        ),
+        'protocol_fee_earned_bps_on_requested_notional': rollup.protocol_fee_earned_bps_on_requested_notional,
+        'execution_shortfall_bps_on_requested_notional': rollup.execution_shortfall_bps_on_requested_notional,
+        'all_in_trader_cost_bps_on_requested_notional': rollup.all_in_trader_cost_bps_on_requested_notional,
     }
 
 

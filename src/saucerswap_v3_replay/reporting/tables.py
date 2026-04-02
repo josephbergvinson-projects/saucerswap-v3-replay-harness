@@ -6,6 +6,7 @@ from typing import Any
 from ..benchmarks.lambdaplex import PublishedBenchmarkStatus
 from ..metrics.summaries import RollupSummary
 from ..normalize.events import format_decimal, format_scaled_int
+from .fee_views import FeeRollupSummary
 
 AGGREGATE_FIELDNAMES = [
     'lane',
@@ -73,6 +74,77 @@ SEGMENT_FIELDNAMES = [
     'admissibility_unknown_rows',
 ]
 
+FEE_AGGREGATE_FIELDNAMES = [
+    'lane',
+    'lane_label',
+    'row_count',
+    'requested_notional_usdc',
+    'fee_basis_filled_notional_usd',
+    'trader_fee_paid_usd',
+    'active_lp_fee_earned_usd',
+    'maker_rebate_earned_usd',
+    'liquidity_side_fee_earned_usd',
+    'protocol_fee_earned_usd',
+    'execution_shortfall_usd',
+    'all_in_trader_cost_usd',
+    'trader_fee_paid_bps_on_requested_notional',
+    'trader_fee_paid_bps_on_filled_notional',
+    'liquidity_side_fee_earned_bps_on_requested_notional',
+    'protocol_fee_earned_bps_on_requested_notional',
+    'execution_shortfall_bps_on_requested_notional',
+    'all_in_trader_cost_bps_on_requested_notional',
+    'v3_min_order_ineligible_rows',
+    'fee_precision',
+    'notes',
+]
+
+FEE_SEGMENT_FIELDNAMES = [
+    'segment',
+    'lane',
+    'lane_label',
+    'row_count',
+    'requested_notional_usdc',
+    'fee_basis_filled_notional_usd',
+    'trader_fee_paid_usd',
+    'active_lp_fee_earned_usd',
+    'maker_rebate_earned_usd',
+    'liquidity_side_fee_earned_usd',
+    'protocol_fee_earned_usd',
+    'execution_shortfall_usd',
+    'all_in_trader_cost_usd',
+    'trader_fee_paid_bps_on_requested_notional',
+    'trader_fee_paid_bps_on_filled_notional',
+    'liquidity_side_fee_earned_bps_on_requested_notional',
+    'protocol_fee_earned_bps_on_requested_notional',
+    'execution_shortfall_bps_on_requested_notional',
+    'all_in_trader_cost_bps_on_requested_notional',
+    'v3_min_order_ineligible_rows',
+]
+
+FEE_SCENARIO_FIELDNAMES = [
+    'lane',
+    'lane_label',
+    'scenario_id',
+    'row_count',
+    'requested_notional_usdc',
+    'fee_basis_filled_notional_usd',
+    'trader_fee_paid_usd',
+    'active_lp_fee_earned_usd',
+    'maker_rebate_earned_usd',
+    'liquidity_side_fee_earned_usd',
+    'protocol_fee_earned_usd',
+    'execution_shortfall_usd',
+    'all_in_trader_cost_usd',
+    'trader_fee_paid_bps_on_requested_notional',
+    'trader_fee_paid_bps_on_filled_notional',
+    'liquidity_side_fee_earned_bps_on_requested_notional',
+    'protocol_fee_earned_bps_on_requested_notional',
+    'execution_shortfall_bps_on_requested_notional',
+    'all_in_trader_cost_bps_on_requested_notional',
+    'v3_min_order_ineligible_rows',
+    'notes',
+]
+
 
 def build_aggregate_rows(
     *,
@@ -122,6 +194,78 @@ def build_segment_rows(
     return rows
 
 
+def build_fee_aggregate_rows(
+    *,
+    lane_order: list[str],
+    lane_labels: dict[str, str],
+    lane_fee_rollups: dict[str, FeeRollupSummary],
+    lane_fee_precision: dict[str, str],
+    lane_notes: dict[str, str],
+) -> list[dict[str, str]]:
+    return [
+        build_fee_rollup_row(
+            lane=lane,
+            lane_label=lane_labels[lane],
+            rollup=lane_fee_rollups[lane],
+            fee_precision=lane_fee_precision.get(lane, ''),
+            notes=lane_notes.get(lane, ''),
+        )
+        for lane in lane_order
+        if lane in lane_fee_rollups
+    ]
+
+
+def build_fee_segment_rows(
+    *,
+    segment_order: list[str],
+    lane_order: list[str],
+    lane_labels: dict[str, str],
+    lane_segment_rollups: dict[str, dict[str, FeeRollupSummary]],
+) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for segment in segment_order:
+        for lane in lane_order:
+            rollup = lane_segment_rollups.get(lane, {}).get(segment)
+            if rollup is None:
+                continue
+            rows.append(
+                {
+                    'segment': segment,
+                    'lane': lane,
+                    'lane_label': lane_labels[lane],
+                    **fee_rollup_metrics(rollup),
+                }
+            )
+    return rows
+
+
+def build_fee_scenario_rows(
+    *,
+    lane_order: list[str],
+    lane_labels: dict[str, str],
+    lane_scenario_rollups: dict[str, dict[str, FeeRollupSummary]],
+    scenario_order: list[str],
+    lane_notes: dict[str, str],
+) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for lane in lane_order:
+        scenario_rollups = lane_scenario_rollups.get(lane, {})
+        for scenario_id in scenario_order:
+            rollup = scenario_rollups.get(scenario_id)
+            if rollup is None:
+                continue
+            rows.append(
+                {
+                    'lane': lane,
+                    'lane_label': lane_labels[lane],
+                    'scenario_id': scenario_id,
+                    **fee_rollup_metrics(rollup),
+                    'notes': lane_notes.get(lane, ''),
+                }
+            )
+    return rows
+
+
 def build_rollup_row(
     *,
     lane: str,
@@ -140,6 +284,23 @@ def build_rollup_row(
         'source_notes_path': '',
         'published_headline_metrics': '',
         'benchmark_provenance': '',
+        'notes': notes,
+    }
+
+
+def build_fee_rollup_row(
+    *,
+    lane: str,
+    lane_label: str,
+    rollup: FeeRollupSummary,
+    fee_precision: str,
+    notes: str,
+) -> dict[str, str]:
+    return {
+        'lane': lane,
+        'lane_label': lane_label,
+        **fee_rollup_metrics(rollup),
+        'fee_precision': fee_precision,
         'notes': notes,
     }
 
@@ -264,11 +425,47 @@ def rollup_metrics(rollup: RollupSummary) -> dict[str, str]:
     }
 
 
+def fee_rollup_metrics(rollup: FeeRollupSummary) -> dict[str, str]:
+    return {
+        'row_count': str(rollup.row_count),
+        'requested_notional_usdc': format_scaled_int(rollup.requested_notional_raw_total, 6),
+        'fee_basis_filled_notional_usd': format_decimal(rollup.fee_basis_filled_notional_total),
+        'trader_fee_paid_usd': format_decimal(rollup.trader_fee_paid_total),
+        'active_lp_fee_earned_usd': format_decimal(rollup.active_lp_fee_earned_total),
+        'maker_rebate_earned_usd': format_decimal(rollup.maker_rebate_earned_total),
+        'liquidity_side_fee_earned_usd': format_decimal(rollup.liquidity_side_fee_earned_total),
+        'protocol_fee_earned_usd': format_decimal(rollup.protocol_fee_earned_total),
+        'execution_shortfall_usd': format_decimal(rollup.execution_shortfall_total),
+        'all_in_trader_cost_usd': format_decimal(rollup.all_in_trader_cost_total),
+        'trader_fee_paid_bps_on_requested_notional': format_decimal(
+            rollup.trader_fee_paid_bps_on_requested_notional
+        ),
+        'trader_fee_paid_bps_on_filled_notional': format_decimal(rollup.trader_fee_paid_bps_on_filled_notional),
+        'liquidity_side_fee_earned_bps_on_requested_notional': format_decimal(
+            rollup.liquidity_side_fee_earned_bps_on_requested_notional
+        ),
+        'protocol_fee_earned_bps_on_requested_notional': format_decimal(
+            rollup.protocol_fee_earned_bps_on_requested_notional
+        ),
+        'execution_shortfall_bps_on_requested_notional': format_decimal(
+            rollup.execution_shortfall_bps_on_requested_notional
+        ),
+        'all_in_trader_cost_bps_on_requested_notional': format_decimal(
+            rollup.all_in_trader_cost_bps_on_requested_notional
+        ),
+        'v3_min_order_ineligible_rows': str(rollup.v3_min_order_ineligible_rows),
+    }
+
+
 def render_final_comparison_report(
     *,
     aggregate_rows: list[dict[str, str]],
+    fee_aggregate_rows: list[dict[str, str]],
     side_rows: list[dict[str, str]],
+    fee_side_rows: list[dict[str, str]],
     bucket_rows: list[dict[str, str]],
+    fee_bucket_rows: list[dict[str, str]],
+    fee_scenario_rows: list[dict[str, str]],
     benchmark_status: PublishedBenchmarkStatus,
     caveats: list[str],
 ) -> str:
@@ -302,6 +499,23 @@ def render_final_comparison_report(
                 ],
             ),
             '',
+            '## Fee-inclusive economics',
+            '',
+            render_markdown_table(
+                fee_aggregate_rows,
+                [
+                    ('Lane', 'lane_label'),
+                    ('Trader fee (USD)', 'trader_fee_paid_usd'),
+                    ('Liquidity-side earnings (USD)', 'liquidity_side_fee_earned_usd'),
+                    ('Protocol earnings (USD)', 'protocol_fee_earned_usd'),
+                    ('Execution shortfall (USD)', 'execution_shortfall_usd'),
+                    ('All-in trader cost (USD)', 'all_in_trader_cost_usd'),
+                    ('Trader fee (bps, requested)', 'trader_fee_paid_bps_on_requested_notional'),
+                    ('All-in cost (bps, requested)', 'all_in_trader_cost_bps_on_requested_notional'),
+                    ('Notes', 'notes'),
+                ],
+            ),
+            '',
             '## Side split',
             '',
             render_markdown_table(
@@ -314,6 +528,20 @@ def render_final_comparison_report(
                     ('Avg completion', 'avg_completion_ratio'),
                     ('Avg study slippage (bps)', 'avg_slippage_bps'),
                     ('Avg parity proxy slippage (bps)', 'avg_amm_pre_trade_spot_gross_slippage_bps'),
+                ],
+            ),
+            '',
+            '## Fee side split',
+            '',
+            render_markdown_table(
+                fee_side_rows,
+                [
+                    ('Side', 'segment'),
+                    ('Lane', 'lane_label'),
+                    ('Trader fee (USD)', 'trader_fee_paid_usd'),
+                    ('Liquidity-side earnings (USD)', 'liquidity_side_fee_earned_usd'),
+                    ('Protocol earnings (USD)', 'protocol_fee_earned_usd'),
+                    ('All-in cost (bps, requested)', 'all_in_trader_cost_bps_on_requested_notional'),
                 ],
             ),
             '',
@@ -330,6 +558,35 @@ def render_final_comparison_report(
                     ('Avg completion', 'avg_completion_ratio'),
                     ('Avg study slippage (bps)', 'avg_slippage_bps'),
                     ('Avg parity proxy slippage (bps)', 'avg_amm_pre_trade_spot_gross_slippage_bps'),
+                ],
+            ),
+            '',
+            '## Fee bucket split',
+            '',
+            render_markdown_table(
+                fee_bucket_rows,
+                [
+                    ('Bucket', 'segment'),
+                    ('Lane', 'lane_label'),
+                    ('Trader fee (USD)', 'trader_fee_paid_usd'),
+                    ('Liquidity-side earnings (USD)', 'liquidity_side_fee_earned_usd'),
+                    ('Protocol earnings (USD)', 'protocol_fee_earned_usd'),
+                    ('All-in cost (bps, requested)', 'all_in_trader_cost_bps_on_requested_notional'),
+                ],
+            ),
+            '',
+            '## xSAUCE fee scenario sensitivity',
+            '',
+            render_markdown_table(
+                fee_scenario_rows,
+                [
+                    ('Lane', 'lane_label'),
+                    ('Scenario', 'scenario_id'),
+                    ('Trader fee (USD)', 'trader_fee_paid_usd'),
+                    ('Liquidity-side earnings (USD)', 'liquidity_side_fee_earned_usd'),
+                    ('Protocol earnings (USD)', 'protocol_fee_earned_usd'),
+                    ('All-in cost (bps, requested)', 'all_in_trader_cost_bps_on_requested_notional'),
+                    ('Notes', 'notes'),
                 ],
             ),
             '',
@@ -411,6 +668,7 @@ def render_validation_report(
                 ('Filled totals', 'filled_totals_match'),
                 ('Completion counts', 'completion_counts_match'),
                 ('Fee coverage', 'fee_coverage_match'),
+                ('Fee rollup', 'default_fee_rollup_match'),
                 ('Status', 'status'),
             ],
         ),
@@ -450,6 +708,7 @@ def render_validation_polish_report(
                     ('Filled totals', 'filled_totals_match'),
                     ('Completion counts', 'completion_counts_match'),
                     ('Fee coverage', 'fee_coverage_match'),
+                    ('Fee rollup', 'default_fee_rollup_match'),
                     ('Status', 'status'),
                 ],
             ),
