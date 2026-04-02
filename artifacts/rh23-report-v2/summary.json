@@ -1,0 +1,9 @@
+{
+  "source_basis": "/Users/openclaw/OpenClawWorkspace/projects/.worktrees/feat-ssv3-rh23-final-report-v2/artifacts/rh09-benchmark-20260325/reporting-root",
+  "current_report_reference": "/Users/openclaw/OpenClawWorkspace/projects/.worktrees/feat-ssv3-rh23-final-report-v2/reports/final-comparison.md",
+  "generated_report_path": "/Users/openclaw/OpenClawWorkspace/projects/.worktrees/feat-ssv3-rh23-final-report-v2/reports/final-comparison-v2.md",
+  "generated_fee_csvs": [
+    "/Users/openclaw/OpenClawWorkspace/projects/.worktrees/feat-ssv3-rh23-final-report-v2/artifacts/rh23-report-v2/fees_no_xsauce.csv",
+    "/Users/openclaw/OpenClawWorkspace/projects/.worktrees/feat-ssv3-rh23-final-report-v2/artifacts/rh23-report-v2/fees_tier2_10pct.csv"
+  ]
+}
