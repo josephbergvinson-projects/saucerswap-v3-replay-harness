@@ -5,3 +5,49 @@ fees:
   source_fee_treatment: "historical_when_available"
   missing_fee_policy: "flag_and_continue"
   impute_missing_fees: false
+  extension_status: "rh20_scope_locked_pending_rh21_implementation"
+  preserve_existing_execution_quality_surfaces: true
+  explicit_fee_amount_basis: "filled_notional"
+  requested_notional_fee_normalization: "headline"
+  filled_notional_fee_normalization: "supplemental_only"
+  v3_min_order_eligibility_basis: "requested_notional"
+  v3_min_order_ineligible_policy: "flag_and_separate_from_v3_fee_rollups"
+  recipient_sign_convention: "all_positive_usd_transfers"
+  protocol_fee_scope: "gross_trading_fee_accrual_before_downstream_buyback_routing"
+
+  v2_whbar_usdc:
+    trader_fee_bps: 15.0
+    gross_swap_fee_bps: 15.0
+    protocol_cut_fraction: 0.1666666667
+    active_lp_cut_fraction: 0.8333333333
+    protocol_fee_bps: 2.5
+    active_lp_fee_bps: 12.5
+    fee_basis: "filled_notional"
+
+  v3_whbar_usdc:
+    taker_fee_schedule_bps: 12.0
+    maker_rebate_bps: 0.2
+    rebate_cap_fraction_of_effective_taker_fee: 0.25
+    min_order_size_usdc: 1.0
+    fee_basis: "filled_notional"
+    scenarios:
+      no_xsauce:
+        xsauce_discount_fraction: 0.0
+        effective_taker_fee_bps: 12.0
+        maker_rebate_bps: 0.2
+        rebate_cap_bps: 3.0
+        protocol_net_fee_bps: 11.8
+        rebate_cap_status: "does_not_bind"
+      tier2_10pct:
+        xsauce_discount_fraction: 0.10
+        effective_taker_fee_bps: 10.8
+        maker_rebate_bps: 0.2
+        rebate_cap_bps: 2.7
+        protocol_net_fee_bps: 10.6
+        rebate_cap_status: "does_not_bind"
+
+  hybrid_fee_attribution:
+    pure_book_route_fee_model: "v3_whbar_usdc_scenario"
+    v2_backstop_route_fee_model: "v2_whbar_usdc"
+    aggregation_rule: "sum_route_level_fee_components"
+    unfilled_remainder_fee_policy: "zero_explicit_fee"

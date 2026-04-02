@@ -57,12 +57,18 @@ These assumptions are frozen for the first-pass study unless they are explicitly
 
 ## Locked fee treatment in outputs
 
-- Headline comparisons remain fee-inclusive.
 - Headline economics remain requested-notional-based rather than filled-only.
 - Filled-only execution metrics remain supplemental diagnostics, not the headline decision surface.
 - Historical fees are used when available.
 - If historical fee fields are missing, the harness flags the gap and continues; it does not silently impute missing fees.
 - Partial fills and unfilled event-level remainders must remain visible in completion-aware reporting rather than being treated as hidden improvements.
+- The current published first-pass report leaves synthetic-lane fees at `0.0` because that tranche shipped without a grounded V3 / blended fee model.
+
+## RH-20 fee-extension addendum
+
+- The post-first-pass fee-extension contract is locked in `docs/methodology/fee-extension-scope-lock.md`.
+- That addendum is additive: it preserves the existing execution-quality study surfaces while freezing the fee-transfer semantics needed for report v2.
+- RH-20 does not change the event-level replay contract, the study-owned status of 3A / 3B, or the first-pass 3B admissibility rule.
 
 ## Locked first-pass 3B admissibility rule
 

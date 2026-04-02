@@ -49,6 +49,7 @@ The first-pass harness is complete when the repository can reproducibly:
 
 ### Locked study assumptions
 - `docs/methodology/phase-0-lock.md`
+- `docs/methodology/fee-extension-scope-lock.md`
 - `config/study.yaml`
 - `config/buckets.yaml`
 - `config/fees.yaml`
@@ -241,6 +242,8 @@ Each lane should emit one record per replay unit with at least:
 - route_breakdown
 - admissibility_passed
 
+For the post-first-pass fee-extension tranche, execution records must also satisfy the additional fee-field contract locked in `docs/methodology/fee-extension-scope-lock.md` before RH-21 / RH-22 / RH-23 can be considered complete.
+
 ## 8) Validation requirements
 
 Minimum validation for the first-pass harness:
@@ -306,8 +309,18 @@ What it does not own:
 - production trading code
 - external presentation beyond the repo’s own review outputs
 
-## 11) Immediate next step
+## 11) Post-first-pass extension tranche — fee attribution and report v2
+
+The first-pass replay study is already published on `main`.
+The next scoped extension is the fee-attribution tranche:
+
+1. `RH-20` — freeze the fee-methodology contract, measurable-vs-out-of-scope boundary, scenario set, and execution-record fee field requirements
+2. `RH-21` — implement lane-level fee attribution for V2, 3A, and 3B under the locked scenarios
+3. `RH-22` — extend reporting with fee tables, all-in trader cost, and scenario comparisons while preserving the original execution-quality surfaces
+4. `RH-23` — publish the final report v2 with the fee section, validation note, and changelog against the prior report
+
+## 12) Immediate next step
 
 The next atomic implementation step is:
 
-- finish Phase 0 by freezing the config values and methodology notes that still need explicit values before real extraction starts
+- complete RH-20 by freezing the methodology/config contract for V2 vs V3 fee attribution, xSAUCE scenario handling, min-order treatment, and downstream acceptance checks before RH-21 implementation starts
