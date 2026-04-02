@@ -2,21 +2,23 @@
 
 ## Executive summary
 
-This report extends the original final replay study with the additional fee-inclusive scope requested after the first publication.
+This study replays 7,255,957 historical WHBAR/USDC V2 events against two synthetic V3-style execution scenarios and reports both execution-quality and fee-inclusive results.
 
-The core execution conclusion does not change. This study replays 7,255,957 historical WHBAR/USDC V2 events against two synthetic V3-style execution scenarios. Both synthetic scenarios materially improve price quality versus V2. The book-only scenario reduces average study slippage from 19.97 bps to 2.26 bps, but leaves too much large-order flow incomplete. The hybrid scenario preserves essentially the same slippage while improving full-fill rate from 98.21% to 98.95% overall and from 42.16% to 65.11% in the $25k+ bucket. That still makes hybrid the best overall result in this study.
+The main execution result is clear. Both synthetic scenarios materially improve price quality versus V2. The book-only scenario reduces average study slippage from 19.97 bps to 2.26 bps, but leaves too much large-order flow incomplete. The hybrid scenario preserves essentially the same slippage while improving full-fill rate from 98.21% to 98.95% overall and from 42.16% to 65.11% in the $25k+ bucket. Hybrid is therefore the best overall result in this study.
 
-What v2 adds is the explicit fee layer. On the retained fee-reconstructable basis, V2 remains the most expensive scenario for traders on explicit fees. Book-only is cheapest on explicit trader fees. Hybrid sits between the two because it keeps most flow on the lower-fee synthetic book but still routes residual size through the V2 backstop when admissible. Under the default no-xSAUCE schedule, reconstructed aggregate trader fees are about $5.89M for V2, $4.62M for book-only, and $4.66M for hybrid. Under the tier-2 10% xSAUCE discount, the synthetic-scenario fee burden drops further.
+The fee layer points in the same direction. Under the default no-xSAUCE schedule, explicit trader fees are about $5.89M for V2, $4.62M for book-only, and $4.66M for hybrid. V2 is the most expensive outcome for traders by a wide margin. Book-only is cheapest on explicit fees. Hybrid sits between the two because it keeps most flow on the lower-fee synthetic book while routing admissible residual size through the V2 backstop.
 
-That fee extension strengthens the case against the current V2 baseline, but it does not overturn the main decision rule. The preferred design is still the one that preserves most of the slippage improvement while keeping completion high on large clips. On that combined lens, hybrid remains the preferred result.
+Liquidity-side earnings also differ sharply across scenarios. V2 routes about $4.91M to active LPs. Book-only routes about $77.0k to makers. Hybrid routes the same $77.0k maker rebate plus about $34.5k of V2 LP accrual on the residual backstop, for about $111.5k total liquidity-side earnings. That split matters because hybrid improves completion relative to book-only without erasing the distinction between book maker economics and the legacy V2 LP fee path.
 
-A final caveat is important. The main execution-quality conclusion still uses the later RH-12 hybrid rerun that improved large-clip completion. The fee reconstruction cannot be done exactly on that later basis because the matching structured lane outputs were not retained. To avoid mixing incompatible bases, the fee layer in this v2 report is reconstructed on the last retained structured snapshot and treated as an explicit extension rather than as a fully rerun all-in report on the later hybrid basis.
+The tier-2 10% xSAUCE case lowers explicit trader fees further for the synthetic scenarios without changing execution quality. Aggregate trader fees fall to about $4.16M for book-only and $4.20M for hybrid. Liquidity-side earnings stay flat because the discount comes out of protocol take rather than maker rebates or LP accrual.
+
+One source-basis caveat matters for interpretation. The execution tables in this report preserve the later RH-12 hybrid rerun that improved large-clip completion. The fee reconstruction uses the last retained structured reporting snapshot, because the matching structured lane outputs for the later hybrid rerun were not retained in the mounted workspace. The result is still decision-useful: the latest execution conclusion remains intact, and the fee layer is grounded in retained structured outputs rather than guessed or backfilled from memory.
 
 ## Decision rule
 
-The preferred design is **not** the one with the lowest slippage in isolation. The preferred design is the one that preserves most of the slippage improvement versus V2 while keeping completion high, especially on large clips.
+Choose the design that preserves most of the slippage improvement versus V2 while keeping completion high, especially on large clips.
 
-That still yields the same core decision matrix:
+That yields the following decision matrix:
 
 | Decision lens | Preferred scenario | Why |
 | --- | --- | --- |
@@ -32,16 +34,15 @@ That still yields the same core decision matrix:
 - On the same historical WHBAR/USDC flow, both synthetic V3-style scenarios improve price quality materially versus the V2 baseline.
 - The book-only scenario is too capacity-constrained on large clips.
 - The hybrid scenario materially closes that completion gap without giving back the slippage advantage.
-- The fee-inclusive extension does not reverse the execution conclusion: hybrid still beats V2 clearly, and book-only remains the cheapest explicit-fee synthetic scenario.
-- xSAUCE fee discounts materially lower explicit trader fees for the synthetic scenarios.
-- Lambdaplex is directionally useful as an external benchmark, especially for AMM-facing slippage context, but only under explicit caveats.
+- The fee layer quantifies trader fees, maker rebates, active-LP accrual, protocol earnings, and xSAUCE tier effects across V2, book-only, and hybrid.
+- The published Lambdaplex 15.47 bps AMM figure can be reproduced on our own V2 baseline using the AMM pre-trade spot gross parity proxy, which avoids a denominator mismatch when comparing the studies at a high level.
 
 ### What this study does not show
 
 - A production-faithful simulation of deployed SaucerSwap V3 or any live generic on-chain order book.
-- A fully normalized Lambdaplex benchmark across fill rate, completion, remainder, weighting, fees, and methodology.
-- A fee-aware rerun of the hybrid routing decision itself. The fee layer in this report is a reporting-layer reconstruction, not a new routing simulation.
+- A fee-aware rerun of the hybrid routing decision itself. The fee layer here is a reporting reconstruction, not a new routing simulation.
 - An exact all-in trader-cost surface on the later RH-12 hybrid basis, because the matching structured lane outputs were not retained in the mounted workspace.
+- A full cross-study normalization of every Lambdaplex headline beyond the narrow AMM-facing parity note above.
 
 ## Study design
 
@@ -68,18 +69,14 @@ That still yields the same core decision matrix:
 - Residual size routes to historical V2 only when the study-owned admissibility rule passes.
 - After the large-clip improvement pass, admissibility is evaluated on the projected blended execution price rather than the residual V2 leg in isolation.
 
-### V2 extension scope and source basis
+### Source basis and retained outputs
 
-This v2 report extends the original final study with an explicit fee-inclusive reporting layer.
+Two retained-output facts matter for this v2 report:
 
-Two source-basis facts matter:
-
-- The main execution-quality conclusions in this report still use the later RH-12 hybrid rerun already reflected in the original final report on `main`.
+- The execution-quality tables preserve the later RH-12 hybrid rerun already reflected in the published replay conclusions on `main`.
 - The fee reconstruction is anchored to the last retained structured reporting snapshot: `artifacts/rh09-benchmark-20260325/reporting-root/`.
 
-That split is necessary because the current `reports/final-comparison.md` on `main` reflects the later RH-12 hybrid-only execution rerun, but the matching structured lane CSVs and summaries were not retained. Exact fee reconstruction on that later basis is therefore not possible from the mounted workspace.
-
-The safe way to extend the report is to keep the latest execution-quality conclusion, add the fee layer on the retained structured basis, and state the basis difference explicitly rather than silently blending incompatible snapshots.
+That split is necessary because the later RH-12 hybrid rerun improved the execution result materially in large buckets, but the matching structured lane CSVs and summaries needed for exact fee reconstruction were not retained. The fee layer in this report therefore uses the retained structured basis rather than silently mixing incompatible snapshots.
 
 ### Locked fee model used in this report
 
@@ -90,7 +87,7 @@ The safe way to extend the report is to keep the latest execution-quality conclu
 
 ### Metric definitions used in the main body
 
-The main body still uses one primary slippage metric:
+The main body uses one primary slippage metric:
 
 - **Avg study slippage (bps)** = `avg_slippage_bps`, the study-owned external-reference slippage metric.
 
@@ -100,7 +97,7 @@ Other headline metrics:
 - **Avg completion** = average filled share of requested size across replay units.
 - **Remainder** = total unfilled HBAR volume left on the table, computed as aggregate requested HBAR minus filled HBAR across replay events. It is an absolute leftover amount, not a percentage.
 
-Fee tables in the main body are explicit-fee reconstructions from retained `filled_notional_usdc` plus the locked fee contract above. Dollar figures are rounded for readability in this report; the companion comparison file keeps the more detailed precision.
+Fee tables in the main body are deterministic reconstructions from retained `filled_notional_usdc` plus the locked fee contract above. Dollar figures are rounded for readability in this report.
 
 ## Headline results
 
@@ -123,7 +120,7 @@ Relative to book-only, hybrid improves:
 - remainder from **431.6M to 253.2M HBAR**
 - partial-fill events from **28,789 to 1,114**
 
-That is the core reason the report still prefers hybrid rather than simply picking the lowest-slippage synthetic scenario and stopping there.
+That is the main reason this report prefers hybrid rather than simply choosing the lowest-slippage synthetic path and stopping there.
 
 ## $25k+ stress case
 
@@ -139,7 +136,7 @@ Takeaway: book-only breaks down on large clips, while hybrid materially closes t
 
 ## Secondary cost framing
 
-A secondary way to summarize the result is implied slippage cost per $1M of filled notional on the **study-owned slippage metric**.
+A secondary way to summarize the result is implied slippage cost per $1M of filled notional on the study-owned slippage metric.
 
 | Scenario | Study slippage cost per $1M filled | Improvement vs V2 |
 | --- | ---: | ---: |
@@ -147,98 +144,86 @@ A secondary way to summarize the result is implied slippage cost per $1M of fill
 | Book-only | $473.38 | $1,967.39 lower |
 | Hybrid | $497.13 | $1,943.64 lower |
 
-This cost framing is useful, but secondary. It mixes price quality and completion, so it should not override the decision rule above. That is why hybrid remains the preferred overall scenario even though book-only is slightly better on pure price cost alone.
+This cost framing is useful, but secondary. It mixes price quality and completion, so the decision rule still belongs to the combined price-plus-completion lens above.
 
-## Fee-inclusive extension
-
-The new scope in v2 is the explicit fee layer.
-
-This section should be read as an extension of the main execution study, not as a silent replacement of it. The execution tables above preserve the latest internal study conclusion. The fee tables below answer a narrower question: given the retained structured basis and the locked fee contract, how do explicit trader fees, liquidity-side earnings, and protocol earnings compare across V2, book-only, and hybrid?
+## Explicit fee economics
 
 ### Headline explicit fee economics (`no_xsauce` default)
 
-| Scenario | Trader fee (USD) | Liquidity-side total (USD) | Protocol earnings (USD) | Trader fee (bps, requested) |
-| --- | ---: | ---: | ---: | ---: |
-| V2 baseline | $5,892,865.90 | $4,910,721.58 | $982,144.32 | 15.00 |
-| Book-only | $4,621,382.48 | $77,023.04 | $4,544,359.44 | 11.76 |
-| Hybrid | $4,662,788.54 | $111,528.09 | $4,551,260.45 | 11.87 |
+| Scenario | Trader fee (USD) | Maker rebate (USD) | Active LP accrual (USD) | Liquidity-side total (USD) | Protocol earnings (USD) | Trader fee (bps, requested) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| V2 baseline | $5,892,865.90 | $0.00 | $4,910,721.58 | $4,910,721.58 | $982,144.32 | 15.00 |
+| Book-only | $4,621,382.48 | $77,023.04 | $0.00 | $77,023.04 | $4,544,359.44 | 11.76 |
+| Hybrid | $4,662,788.54 | $77,023.04 | $34,505.05 | $111,528.09 | $4,551,260.45 | 11.87 |
 
-Takeaway: the explicit fee layer strengthens the negative case on the V2 baseline. V2 is the highest-fee outcome for traders by a wide margin. Book-only is the cheapest explicit-fee synthetic path. Hybrid remains much cheaper than V2, but slightly more expensive than book-only because the admissible residual backstop inherits V2 fees.
+Takeaway: V2 is the most expensive outcome for traders by a wide margin. Book-only is the cheapest explicit-fee synthetic path. Hybrid remains much cheaper than V2, but it gives back some fee advantage versus book-only because the residual backstop inherits V2 fees.
 
-### What the fee layer changes / does not change
+### Liquidity-side earnings
 
-- It **does** show that the synthetic scenarios are not just better on slippage; they are also materially better than V2 on explicit trader fees.
-- It **does** show that hybrid gives back some fee advantage versus book-only because the residual V2 leg is real and economically meaningful.
-- It **does not** overturn the preferred scenario, because the original reason for preferring hybrid was never lower fees in isolation. It was preserving the slippage gain while materially improving completion on large clips.
-- It **does not** supply a fully rerun all-in trader-cost model on the later RH-12 basis. That remains outside what can be reconstructed from the retained files.
+The liquidity-side result is not just a footnote. The scenarios transfer fees to different recipients in very different proportions.
 
-### $25k+ explicit fee stress case (retained RH-09 structured basis)
+| Scenario | Maker rebate (USD) | Active LP accrual (USD) | Liquidity-side total (USD) |
+| --- | ---: | ---: | ---: |
+| V2 baseline | $0.00 | $4,910,721.58 | $4,910,721.58 |
+| Book-only | $77,023.04 | $0.00 | $77,023.04 |
+| Hybrid | $77,023.04 | $34,505.05 | $111,528.09 |
 
-The fee extension is especially informative in the same $25k+ stress bucket where the book-only scenario breaks down on completion.
+Interpretation:
 
-| Scenario | Trader fee (USD) | Liquidity-side total (USD) | Protocol earnings (USD) | Trader fee (bps, requested) |
-| --- | ---: | ---: | ---: | ---: |
-| V2 baseline | $192,217.23 | $160,181.02 | $32,036.20 | 15.00 |
-| Book-only | $63,360.00 | $1,056.00 | $62,304.00 | 4.94 |
-| Hybrid | $102,570.54 | $33,731.45 | $68,839.09 | 8.00 |
+- V2 routes essentially the whole liquidity-side fee transfer to active LPs.
+- Book-only replaces LP accrual with a much smaller maker rebate stream.
+- Hybrid preserves the book maker rebate and adds a residual V2 LP accrual stream where the backstop actually fills.
 
-Takeaway: on large clips, the fee story still follows the routing story. Book-only is cheapest on explicit trader fees, but only because it leaves much more high-notional flow incomplete. Hybrid pays more than book-only because it actually completes more of that large-order flow through the V2 residual leg. Even so, hybrid remains materially cheaper than V2 on explicit fees in this stress bucket.
+That makes hybrid economically more informative than book-only on the liquidity side. It does not reproduce the V2 LP fee stream, but it does show where LP earnings persist once the residual V2 leg is allowed back into the execution path.
 
-### xSAUCE fee sensitivity
+### $25k+ explicit fee stress case (`no_xsauce` default)
 
-Under the tier-2 10% xSAUCE discount, the synthetic-scenario explicit fee burden falls further while maker rebates stay unchanged and the discount comes out of protocol take.
+The fee story is especially informative in the same $25k+ bucket where the book-only scenario breaks down on completion.
 
-| Scenario | Fee case | Trader fee (USD) | Liquidity-side total (USD) | Protocol earnings (USD) | Trader fee (bps, requested) |
-| --- | --- | ---: | ---: | ---: | ---: |
-| V2 baseline | fixed V2 | $5,892,865.90 | $4,910,721.58 | $982,144.32 | 15.00 |
-| Book-only | no xSAUCE | $4,621,382.48 | $77,023.04 | $4,544,359.44 | 11.76 |
-| Book-only | tier 2 (10%) | $4,159,244.23 | $77,023.04 | $4,082,221.19 | 10.59 |
-| Hybrid | no xSAUCE | $4,662,788.54 | $111,528.09 | $4,551,260.45 | 11.87 |
-| Hybrid | tier 2 (10%) | $4,200,650.29 | $111,528.09 | $4,089,122.20 | 10.69 |
+| Scenario | Trader fee (USD) | Maker rebate (USD) | Active LP accrual (USD) | Liquidity-side total (USD) | Protocol earnings (USD) | Trader fee (bps, requested) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| V2 baseline | $192,217.23 | $0.00 | $160,181.02 | $160,181.02 | $32,036.20 | 15.00 |
+| Book-only | $63,360.00 | $1,056.00 | $0.00 | $1,056.00 | $62,304.00 | 4.94 |
+| Hybrid | $102,570.54 | $1,056.00 | $32,675.45 | $33,731.45 | $68,839.09 | 8.00 |
 
-Takeaway: the xSAUCE discount meaningfully lowers explicit trader fees in the synthetic scenarios, but it does not change the ordering. Book-only remains the lowest-fee synthetic path. Hybrid remains the better overall design once completion is reintroduced into the decision rule.
+Takeaway: on large clips, book-only is cheapest on explicit fees because it completes far less of the hardest flow. Hybrid pays more than book-only because it actually completes more of that large-order flow through the V2 residual leg. Even so, hybrid remains materially cheaper than V2 on explicit trader fees in this bucket.
 
-## External benchmark: Lambdaplex
+## Tier-2 (10%) xSAUCE fee case
 
-Lambdaplex should still be treated as an external benchmark, not as a fourth replay scenario equivalent to the three modeled here.
+The tier-2 xSAUCE case changes the fee schedule, not the execution path. Fill rate, completion, slippage, and remainder therefore stay the same. What changes is the allocation of explicit fees: traders pay less, protocol take falls, and liquidity-side earnings remain unchanged.
 
-### What Lambdaplex publicly discloses
+### Aggregate tier-2 results
 
-The published Lambdaplex panel gives two numbers relevant here:
+| Scenario | Trader fee (USD) | Maker rebate (USD) | Active LP accrual (USD) | Liquidity-side total (USD) | Protocol earnings (USD) | Trader fee (bps, requested) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| V2 baseline | $5,892,865.90 | $0.00 | $4,910,721.58 | $4,910,721.58 | $982,144.32 | 15.00 |
+| Book-only | $4,159,244.23 | $77,023.04 | $0.00 | $77,023.04 | $4,082,221.19 | 10.59 |
+| Hybrid | $4,200,650.29 | $77,023.04 | $34,505.05 | $111,528.09 | $4,089,122.20 | 10.69 |
 
-- **Average AMM slippage:** 15.47 bps
-- **Grid-strategy slippage:** 2.82 bps
+Relative to the default no-xSAUCE schedule:
 
-What it does **not** disclose well enough for full normalization:
+- Book-only trader fees fall by about **$462.1k**.
+- Hybrid trader fees fall by about **$462.1k**.
+- Maker rebates and LP accrual are unchanged.
+- The discount comes out of protocol earnings, not liquidity-side earnings.
 
-- fill rate
-- avg completion
-- remainder / unfilled size
-- weighting basis
-- fee treatment
-- failure / partial-fill treatment
+### $25k+ tier-2 stress case
 
-### How to compare Lambdaplex to this study
+| Scenario | Trader fee (USD) | Maker rebate (USD) | Active LP accrual (USD) | Liquidity-side total (USD) | Protocol earnings (USD) | Trader fee (bps, requested) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| V2 baseline | $192,217.23 | $0.00 | $160,181.02 | $160,181.02 | $32,036.20 | 15.00 |
+| Book-only | $57,024.00 | $1,056.00 | $0.00 | $1,056.00 | $55,968.00 | 4.45 |
+| Hybrid | $96,234.54 | $1,056.00 | $32,675.45 | $33,731.45 | $62,503.09 | 7.51 |
 
-There are still two distinct comparison surfaces.
+Takeaway: the tier-2 fee discount materially lowers trader fees in the hardest bucket without changing execution quality. Hybrid still sits between book-only and V2, and the liquidity-side figures remain exactly the same as in the default fee case.
 
-**1. AMM-facing comparison**
+## Benchmark normalization note
 
-For the AMM-facing number, this study uses a separate Lambdaplex-parity proxy metric based on reconstructed AMM pre-trade spot gross slippage. On that denominator, our own V2 baseline lands at **15.47 bps**, which strongly supports the interpretation that Lambdaplex’s published 15.47 bps AMM number is being measured on roughly that basis.
+The only Lambdaplex point worth carrying in this v2 report is the denominator check.
 
-That is why this report continues to treat the Lambdaplex 15.47 figure as comparable to the AMM-facing parity proxy, not to the main study slippage metric.
+The published Lambdaplex study reports **15.47 bps** average AMM slippage. Using the AMM pre-trade spot gross parity proxy in the replay harness, our own V2 baseline reproduces **15.47 bps** on that AMM-facing denominator. That is enough to show that the headline V2 number can be matched on the benchmark-style surface rather than treated as evidence that our study is using a weaker comparison.
 
-**2. Book-facing comparison**
-
-For the book-facing number, the closest study-owned comparison is still the main book-only / hybrid slippage result:
-
-- Book-only: **2.26 bps**
-- Hybrid: **2.26 bps**
-- Lambdaplex published grid-strategy slippage: **2.82 bps**
-
-That remains directionally encouraging, but it is **not** a fully normalized apples-to-apples result. The gap is small enough that it should still be explained mainly by modeling and normalization differences, not by claiming some proven architectural edge. Our synthetic book is replenishing and idealized; Lambdaplex’s published panel still leaves important benchmark semantics undisclosed.
-
-The same caveat applies even more strongly on fees. There is still no grounded way to normalize Lambdaplex into the fee-inclusive extension because its public materials do not disclose enough fee, completion, or benchmark-construction detail.
+On the study-owned comparison surface that drives the main decision in this report, the synthetic V3 scenarios still land around **2.26 bps**. That is the point that matters if someone tries to infer from the Lambdaplex study that the replayed order-book design here is somehow inferior.
 
 ## Main conclusion
 
@@ -246,8 +231,8 @@ The study now supports four clear conclusions:
 
 1. **A V3-style execution surface materially improves price quality versus the current WHBAR/USDC V2 pool.**
 2. **Book-only is not enough for large clips.** It leaves too much high-notional flow incomplete.
-3. **Hybrid is still the best overall internal result.** It preserves the slippage gain while materially improving completion and reducing remainder versus book-only.
-4. **The fee-inclusive extension strengthens the negative case on V2 without changing the preferred scenario.** V2 remains the worst outcome on explicit trader fees, book-only remains the cheapest synthetic path, and hybrid remains the best combined price-plus-completion design.
+3. **Hybrid is the best overall internal result.** It preserves the slippage gain while materially improving completion and reducing remainder versus book-only.
+4. **The fee layer strengthens the case against V2 without changing the preferred scenario.** V2 is the worst outcome on explicit trader fees, book-only is the cheapest synthetic path, hybrid is the best combined price-plus-completion design, and the tier-2 xSAUCE case lowers synthetic-scenario trader fees further without changing execution quality.
 
 ## Appendix A — Output paths
 
@@ -260,20 +245,15 @@ Tracked repo outputs:
 - `reports/validation.md`
 - `reports/reconciliation.md`
 
-Companion fee-extension artifacts:
+Companion fee artifacts:
 
 - `artifacts/rh23-report-v2/fees_no_xsauce.csv`
 - `artifacts/rh23-report-v2/fees_tier2_10pct.csv`
 - `artifacts/rh23-report-v2/summary.json`
 
-Benchmark provenance:
-
-- `benchmarks/lambdaplex/published-results.json`
-- `benchmarks/lambdaplex/source-notes.md`
-
 ## Appendix B — Later RH-12 hybrid rerun note
 
-The original final report on `main` already incorporated the later RH-12 hybrid-only rerun because it materially improved large-clip completion and reduced remainder.
+The later RH-12 hybrid rerun improved the hybrid result materially in the large buckets and is therefore preserved in the main execution conclusions of this report.
 
 The key aggregate and large-bucket deltas versus the retained RH-09 structured basis were:
 
@@ -288,11 +268,11 @@ The key aggregate and large-bucket deltas versus the retained RH-09 structured b
 | $25k+ | Avg study slippage | 34.04 bps | 35.30 bps | +1.26 bps |
 | $25k+ | Remainder | 290.5M HBAR | 252.4M HBAR | -38.1M HBAR |
 
-That is why the main execution conclusion in this report continues to use the later hybrid figures, even though the fee reconstruction must stay anchored to the earlier retained structured pack.
+This is why the main execution conclusion in the report uses the later hybrid figures even though the fee reconstruction stays anchored to the earlier retained structured pack.
 
 ## Appendix C — Future studies
 
-This report should still be read as a completed **counterfactual replay study**, not as the final word on production-faithful on-chain order-book behavior.
+This report should be read as a completed **counterfactual replay study**, not as the final word on production-faithful on-chain order-book behavior.
 
 The most useful next studies, if fidelity needs to increase later, are:
 
