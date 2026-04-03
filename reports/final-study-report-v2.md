@@ -10,11 +10,9 @@ The explicit fee-transfer layer points in the same direction. Under the default 
 
 RH-24 closes an important interpretation gap on maker economics. Rebate-only tables can understate the V3-style maker-side monetization surface, because explicit maker rebate is only one component of book-maker economics. The gross spread-capture proxy on filled resting-book quotes is about $1.82M, or 4.73 bps on book-leg filled notional, for both 3A and the pure-book leg of 3B. That does not make maker PnL solved, but it does show that explicit maker rebate alone is too narrow a lens for comparing V2 LP economics with V3-style maker economics.
 
-The explicit liquidity-side fee transfer still differs sharply across scenarios, but it should be read alongside the spread-capture section, not as a standalone liquidity-incentive ranking. V2 routes about $4.91M of explicit fee accrual to active LPs. Book-only routes about $77.0k of explicit maker rebate. Hybrid routes the same $77.0k maker rebate plus about $42.9k of residual V2 LP accrual, for about $119.9k of explicit liquidity-side fee transfer. The gross spread-capture proxy makes clear that the rebate is only a small explicit transfer component inside the V3-style book leg.
+Explicit liquidity-side fee transfer also differs sharply across scenarios. V2 routes about $4.91M of explicit fee accrual to active LPs. Book-only routes about $77.0k of explicit maker rebate. Hybrid routes the same $77.0k maker rebate plus about $42.9k of residual V2 LP accrual, for about $119.9k of explicit liquidity-side fee transfer. The gross spread-capture proxy shows that the rebate is only one transfer component inside the V3-style book leg.
 
 The tier-2 10% xSAUCE case lowers explicit trader fees further for the synthetic scenarios without changing execution quality. Aggregate trader fees fall to about $4.16M for book-only and $4.21M for hybrid. In this retained fee model, maker rebate and residual LP accrual stay flat because the discount comes out of protocol take rather than liquidity-side earnings.
-
-This standalone v2 report now uses the accepted post-RH-24 rerun basis for the fee and spread-capture tables. Earlier v2 drafts had to treat the fee layer as a split-basis extension because the matching row-level lane outputs were not mounted. RH-24 resolved that by rematerializing raw inputs and rerunning the replay pipeline through reporting.
 
 ## Decision rule
 
@@ -75,8 +73,6 @@ That yields the following decision matrix:
 
 ### Current source basis
 
-This standalone v2 report uses the accepted post-RH-24 materialization of the replay pipeline.
-
 RH-24 rematerialized raw inputs and reran:
 
 - normalization
@@ -85,7 +81,7 @@ RH-24 rematerialized raw inputs and reran:
 - 3B hybrid
 - reporting pack
 
-That matters because the fee and spread-capture tables in this report now come from exact row-level lane outputs on the accepted current basis rather than from an earlier split-basis reconstruction.
+The fee and spread-capture tables below are derived from those row-level lane outputs.
 
 ### Locked fee model used in this report
 
@@ -158,7 +154,7 @@ This cost framing is useful, but secondary. It mixes price quality and completio
 
 ## Explicit fee transfer layer
 
-This section reports only the explicit protocol-routed fee transfer layer. It is not a full comparison of V2 LP economics and V3 maker economics. In V2, liquidity compensation is primarily explicit swap-fee accrual to LP capital. In an order book, maker economics come primarily from spread capture on filled resting quotes, with rebates as a secondary tuning lever. The maker rebate shown here is therefore only the measured protocol transfer component, not total maker return.
+The explicit fee-transfer layer covers only the protocol-routed transfer component. It is not a full comparison of V2 LP economics and V3 maker economics. In V2, liquidity compensation is primarily explicit swap-fee accrual to LP capital. In an order book, maker economics come primarily from spread capture on filled resting quotes, with rebates as a secondary tuning lever. The maker rebate shown here is therefore only the measured protocol transfer component, not total maker return.
 
 | Surface | V2 baseline | V3-style book lanes |
 | --- | --- | --- |
@@ -178,7 +174,7 @@ Takeaway: V2 is the most expensive outcome for traders by a wide margin. Book-on
 
 ### Explicit liquidity-side fee transfer (not full maker economics)
 
-The table below compares only the explicit liquidity-side fee transfer captured in the current fee model. It does not measure total maker economics in the V3-style scenarios. That broader maker-side picture is why the spread-capture proxy is reported separately below.
+The liquidity-side table below covers only the explicit fee-transfer component captured in the current fee model. It does not measure total maker economics in the V3-style scenarios. Gross spread capture is reported separately below.
 
 | Scenario | Maker rebate (USD) | Active LP accrual (USD) | Liquidity-side total (USD) |
 | --- | ---: | ---: | ---: |
@@ -192,8 +188,6 @@ Interpretation:
 - In the V3-style scenarios, the measured protocol transfer to makers is only the rebate component; it does not include spread capture or other maker-side economics.
 - Hybrid preserves the same explicit maker rebate on the book leg and adds residual V2 LP accrual where the backstop fills.
 - Lower rebate totals here should not be read as weaker maker incentives than V2 LP accrual; they reflect a different monetization model.
-
-That makes this section useful as a fee-routing comparison, not as a total liquidity-incentive ranking.
 
 ### $25k+ explicit fee transfer stress case (`no_xsauce` default)
 
@@ -209,7 +203,7 @@ Takeaway: on large clips, book-only is cheapest on explicit fees because it comp
 
 ## Gross spread capture on filled resting quotes
 
-This section reports gross spread capture only on filled synthetic resting-book quotes.
+Gross spread capture is measured only on filled synthetic resting-book quotes.
 
 - For **3A**, that means the full pure-book fill.
 - For **3B**, that means the pure-book leg only; the V2 backstop leg is excluded.
@@ -238,7 +232,7 @@ The gross spread-capture proxy rises sharply with order size. That is exactly th
 
 ### Interpretation
 
-This result changes the fair reading of the maker-side comparison.
+The maker-side comparison is broader than rebate-only transfer.
 
 If we looked only at explicit protocol transfer, we would see about **$77.0k** of maker rebate in the book-only lane. Once gross spread capture is reported, the maker-side monetization picture is visibly broader: the filled resting-book leg captures about **$1.82M** of study-reference spread. That still does not solve full maker profitability, but it does show that rebate-only tables materially understate the V3-style maker economics surface.
 
@@ -299,11 +293,9 @@ Historical fee-derivation artifacts retained for provenance:
 - `artifacts/rh23-report-v2/fees_tier2_10pct.csv`
 - `artifacts/rh23-report-v2/summary.json`
 
-## Appendix B — Historical basis note
+## Appendix B — Provenance note
 
-Earlier drafts of this standalone v2 report had to treat the fee layer as a split-basis extension because the matching row-level lane outputs for the accepted hybrid basis were not mounted in the workspace.
-
-RH-24 resolved that gap by rematerializing raw inputs and rerunning:
+RH-24 rematerialized raw inputs and reran:
 
 - normalization
 - V2 baseline
@@ -311,9 +303,9 @@ RH-24 resolved that gap by rematerializing raw inputs and rerunning:
 - 3B hybrid
 - reporting pack
 
-The current standalone v2 report therefore uses the accepted post-RH-24 row-level basis for both the fee tables and the gross spread-capture tables.
+The fee tables and gross spread-capture tables in this report are derived from those row-level lane outputs.
 
-Historically, the later RH-12 hybrid rerun had already established the substantive direction of the final result: hybrid materially improves large-clip completion versus the earlier hybrid basis without giving back the low-slippage profile. RH-24 does not change that conclusion; it makes the economics surface more complete and better grounded.
+The later RH-12 hybrid rerun had already established the substantive direction of the final result: hybrid materially improves large-clip completion versus the earlier hybrid basis without giving back the low-slippage profile. RH-24 does not change that conclusion; it makes the economics surface more complete and better grounded.
 
 ## Appendix C — Future studies
 
