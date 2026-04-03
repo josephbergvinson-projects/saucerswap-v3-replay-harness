@@ -16,10 +16,15 @@ from .fee_views import (
     FeeObservation,
     FeeRollupSummary,
     approximately_matches_fee_rollup,
-    execution_shortfall_usd,
     fee_observation_from_row,
     fee_rollup_from_summary_payload,
     roll_up_fee_observations,
+)
+from .spread_capture_views import (
+    SpreadCaptureObservation,
+    SpreadCaptureRollupSummary,
+    roll_up_spread_capture_observations,
+    spread_capture_observation_from_row,
 )
 from .tables import (
     AGGREGATE_FIELDNAMES,
@@ -27,11 +32,15 @@ from .tables import (
     FEE_SCENARIO_FIELDNAMES,
     FEE_SEGMENT_FIELDNAMES,
     SEGMENT_FIELDNAMES,
+    SPREAD_CAPTURE_AGGREGATE_FIELDNAMES,
+    SPREAD_CAPTURE_SEGMENT_FIELDNAMES,
     build_aggregate_rows,
     build_fee_aggregate_rows,
     build_fee_scenario_rows,
     build_fee_segment_rows,
     build_segment_rows,
+    build_spread_capture_aggregate_rows,
+    build_spread_capture_segment_rows,
     render_final_comparison_report,
     render_reconciliation_report,
     render_validation_report,
@@ -47,6 +56,9 @@ FEE_COMPARISON_AGGREGATE_FILENAME = 'comparison_fees_aggregate.csv'
 FEE_COMPARISON_BY_BUCKET_FILENAME = 'comparison_fees_by_bucket.csv'
 FEE_COMPARISON_BY_SIDE_FILENAME = 'comparison_fees_by_side.csv'
 FEE_SCENARIO_COMPARISON_FILENAME = 'comparison_fee_scenarios.csv'
+SPREAD_CAPTURE_COMPARISON_AGGREGATE_FILENAME = 'comparison_spread_capture_aggregate.csv'
+SPREAD_CAPTURE_COMPARISON_BY_BUCKET_FILENAME = 'comparison_spread_capture_by_bucket.csv'
+SPREAD_CAPTURE_COMPARISON_BY_SIDE_FILENAME = 'comparison_spread_capture_by_side.csv'
 SUMMARY_FILENAME = 'reporting_pack_summary.json'
 MANIFEST_FILENAME = 'reporting_pack_manifest.json'
 FINAL_COMPARISON_REPORT = 'final-comparison.md'
@@ -57,6 +69,7 @@ UNBUCKETED_LABEL = 'unbucketed'
 LANE_ORDER = ['v2_realized', '3a_pure_book', '3b_hybrid']
 SIDE_ORDER = ['buy', 'sell']
 SCENARIO_ORDER = ['v2_fixed', 'no_xsauce', 'tier2_10pct']
+SPREAD_CAPTURE_LANE_ORDER = ['3a_pure_book', '3b_hybrid']
 LANE_LABELS = {
     'v2_realized': 'V2 baseline',
     '3a_pure_book': '3A pure-book',
@@ -66,6 +79,10 @@ LANE_NOTES = {
     'v2_realized': 'Observed realized V2 execution under the event-level replay contract.',
     '3a_pure_book': 'Study-owned replenishing synthetic book; partial fills remain explicit.',
     '3b_hybrid': 'Mounted 3A fill plus residual V2 backstop only when the frozen admissibility rule passes.',
+}
+SPREAD_CAPTURE_NOTES = {
+    '3a_pure_book': 'Filled resting-book quotes only. Proxy is versus the study reference price, not full maker PnL or V3 rebate.',
+    '3b_hybrid': 'Pure-book leg only. Excludes the V2 backstop leg, explicit V2 LP fee accrual, and V3 maker rebate.',
 }
 
 
@@ -124,6 +141,9 @@ class ReportingPackBuildResult:
     fee_comparison_by_bucket_path: Path
     fee_comparison_by_side_path: Path
     fee_scenario_comparison_path: Path
+    spread_capture_comparison_aggregate_path: Path
+    spread_capture_comparison_by_bucket_path: Path
+    spread_capture_comparison_by_side_path: Path
     final_comparison_path: Path
     reconciliation_path: Path
     validation_path: Path
@@ -234,6 +254,20 @@ def run_reporting_pack(root: str | Path) -> ReportingPackBuildResult:
         spec.lane: scenario_fee_rollups_from_summary(spec, lane_artifacts[spec.lane])
         for spec in LANE_SPECS
     }
+    spread_capture_aggregates: dict[str, SpreadCaptureRollupSummary] = {}
+    spread_capture_by_side: dict[str, dict[str, SpreadCaptureRollupSummary]] = {}
+    spread_capture_by_bucket: dict[str, dict[str, SpreadCaptureRollupSummary]] = {}
+    for spec in LANE_SPECS:
+        if spec.lane not in SPREAD_CAPTURE_LANE_ORDER:
+            continue
+        aggregate, by_side, by_bucket = roll_up_spread_capture_lane(
+            processed_dir / spec.csv_filename,
+            bucket_config=bucket_config,
+            reporting_config=reporting_config,
+        )
+        spread_capture_aggregates[spec.lane] = aggregate
+        spread_capture_by_side[spec.lane] = by_side
+        spread_capture_by_bucket[spec.lane] = by_bucket
 
     aggregate_rows = build_aggregate_rows(
         lane_order=LANE_ORDER,
@@ -287,6 +321,24 @@ def run_reporting_pack(root: str | Path) -> ReportingPackBuildResult:
         scenario_order=SCENARIO_ORDER,
         lane_notes={lane: build_fee_lane_note(lane, artifact) for lane, artifact in lane_artifacts.items()},
     )
+    spread_capture_aggregate_rows = build_spread_capture_aggregate_rows(
+        lane_order=SPREAD_CAPTURE_LANE_ORDER,
+        lane_labels=LANE_LABELS,
+        lane_spread_capture_rollups=spread_capture_aggregates,
+        lane_notes=SPREAD_CAPTURE_NOTES,
+    )
+    spread_capture_side_rows = build_spread_capture_segment_rows(
+        segment_order=SIDE_ORDER,
+        lane_order=SPREAD_CAPTURE_LANE_ORDER,
+        lane_labels=LANE_LABELS,
+        lane_segment_rollups=spread_capture_by_side,
+    )
+    spread_capture_bucket_rows = build_spread_capture_segment_rows(
+        segment_order=[bucket.label for bucket in bucket_config.buckets] + [UNBUCKETED_LABEL],
+        lane_order=SPREAD_CAPTURE_LANE_ORDER,
+        lane_labels=LANE_LABELS,
+        lane_segment_rollups=spread_capture_by_bucket,
+    )
 
     comparison_aggregate_path = processed_dir / COMPARISON_AGGREGATE_FILENAME
     comparison_by_bucket_path = processed_dir / COMPARISON_BY_BUCKET_FILENAME
@@ -295,6 +347,9 @@ def run_reporting_pack(root: str | Path) -> ReportingPackBuildResult:
     fee_comparison_by_bucket_path = processed_dir / FEE_COMPARISON_BY_BUCKET_FILENAME
     fee_comparison_by_side_path = processed_dir / FEE_COMPARISON_BY_SIDE_FILENAME
     fee_scenario_comparison_path = processed_dir / FEE_SCENARIO_COMPARISON_FILENAME
+    spread_capture_comparison_aggregate_path = processed_dir / SPREAD_CAPTURE_COMPARISON_AGGREGATE_FILENAME
+    spread_capture_comparison_by_bucket_path = processed_dir / SPREAD_CAPTURE_COMPARISON_BY_BUCKET_FILENAME
+    spread_capture_comparison_by_side_path = processed_dir / SPREAD_CAPTURE_COMPARISON_BY_SIDE_FILENAME
     summary_path = processed_dir / SUMMARY_FILENAME
     manifest_path = processed_dir / MANIFEST_FILENAME
     final_comparison_path = reports_dir / FINAL_COMPARISON_REPORT
@@ -308,6 +363,21 @@ def run_reporting_pack(root: str | Path) -> ReportingPackBuildResult:
     write_csv(fee_comparison_by_bucket_path, FEE_SEGMENT_FIELDNAMES, fee_bucket_rows)
     write_csv(fee_comparison_by_side_path, FEE_SEGMENT_FIELDNAMES, fee_side_rows)
     write_csv(fee_scenario_comparison_path, FEE_SCENARIO_FIELDNAMES, fee_scenario_rows)
+    write_csv(
+        spread_capture_comparison_aggregate_path,
+        SPREAD_CAPTURE_AGGREGATE_FIELDNAMES,
+        spread_capture_aggregate_rows,
+    )
+    write_csv(
+        spread_capture_comparison_by_bucket_path,
+        SPREAD_CAPTURE_SEGMENT_FIELDNAMES,
+        spread_capture_bucket_rows,
+    )
+    write_csv(
+        spread_capture_comparison_by_side_path,
+        SPREAD_CAPTURE_SEGMENT_FIELDNAMES,
+        spread_capture_side_rows,
+    )
 
     validation_rows = [build_validation_row(spec, lane_artifacts[spec.lane]) for spec in LANE_SPECS]
     reconciliation_rows = [build_reconciliation_row(spec, lane_artifacts[spec.lane]) for spec in LANE_SPECS]
@@ -326,6 +396,7 @@ def run_reporting_pack(root: str | Path) -> ReportingPackBuildResult:
         render_final_comparison_report(
             aggregate_rows=aggregate_rows,
             fee_aggregate_rows=fee_aggregate_rows,
+            spread_capture_aggregate_rows=spread_capture_aggregate_rows,
             side_rows=side_rows,
             fee_side_rows=fee_side_rows,
             bucket_rows=bucket_rows,
@@ -373,6 +444,9 @@ def run_reporting_pack(root: str | Path) -> ReportingPackBuildResult:
             'fee_comparison_by_bucket_path': str(fee_comparison_by_bucket_path),
             'fee_comparison_by_side_path': str(fee_comparison_by_side_path),
             'fee_scenario_comparison_path': str(fee_scenario_comparison_path),
+            'spread_capture_comparison_aggregate_path': str(spread_capture_comparison_aggregate_path),
+            'spread_capture_comparison_by_bucket_path': str(spread_capture_comparison_by_bucket_path),
+            'spread_capture_comparison_by_side_path': str(spread_capture_comparison_by_side_path),
             'final_comparison_path': str(final_comparison_path),
             'reconciliation_path': str(reconciliation_path),
             'validation_path': str(validation_path),
@@ -401,6 +475,21 @@ def run_reporting_pack(root: str | Path) -> ReportingPackBuildResult:
             }
             for lane, artifact in lane_artifacts.items()
         },
+        'spread_capture_lane_rollups': {
+            lane: {
+                'aggregate': serialize_spread_capture_rollup_summary(spread_capture_aggregates[lane]),
+                'by_side': {
+                    key: serialize_spread_capture_rollup_summary(value)
+                    for key, value in spread_capture_by_side.get(lane, {}).items()
+                },
+                'by_bucket': {
+                    key: serialize_spread_capture_rollup_summary(value)
+                    for key, value in spread_capture_by_bucket.get(lane, {}).items()
+                },
+            }
+            for lane in SPREAD_CAPTURE_LANE_ORDER
+            if lane in spread_capture_aggregates
+        },
         'validation': {
             'lanes': validation_rows,
             'global_checks': global_checks,
@@ -425,6 +514,9 @@ def run_reporting_pack(root: str | Path) -> ReportingPackBuildResult:
             fee_comparison_by_bucket_path,
             fee_comparison_by_side_path,
             fee_scenario_comparison_path,
+            spread_capture_comparison_aggregate_path,
+            spread_capture_comparison_by_bucket_path,
+            spread_capture_comparison_by_side_path,
             final_comparison_path,
             reconciliation_path,
             validation_path,
@@ -444,6 +536,9 @@ def run_reporting_pack(root: str | Path) -> ReportingPackBuildResult:
         fee_comparison_by_bucket_path=fee_comparison_by_bucket_path,
         fee_comparison_by_side_path=fee_comparison_by_side_path,
         fee_scenario_comparison_path=fee_scenario_comparison_path,
+        spread_capture_comparison_aggregate_path=spread_capture_comparison_aggregate_path,
+        spread_capture_comparison_by_bucket_path=spread_capture_comparison_by_bucket_path,
+        spread_capture_comparison_by_side_path=spread_capture_comparison_by_side_path,
         final_comparison_path=final_comparison_path,
         reconciliation_path=reconciliation_path,
         validation_path=validation_path,
@@ -585,6 +680,31 @@ def roll_up_fee_lane(
     return aggregate, by_side, by_bucket
 
 
+def roll_up_spread_capture_lane(
+    csv_path: Path,
+    *,
+    bucket_config: BucketConfig,
+    reporting_config: ReportingConfig,
+) -> tuple[
+    SpreadCaptureRollupSummary,
+    dict[str, SpreadCaptureRollupSummary],
+    dict[str, SpreadCaptureRollupSummary],
+]:
+    bucket_label = None
+    if reporting_config.include_bucket_split:
+        bucket_label = lambda observation: assign_bucket(bucket_config, observation.requested_notional)
+
+    aggregate, by_side, by_bucket = roll_up_spread_capture_observations(
+        iter_spread_capture_observations(csv_path),
+        bucket_label=bucket_label,
+    )
+    if not reporting_config.include_side_split:
+        by_side = {}
+    if not reporting_config.include_bucket_split:
+        by_bucket = {}
+    return aggregate, by_side, by_bucket
+
+
 def iter_lane_observations(csv_path: Path, *, slippage_field: str) -> Iterator[LaneObservation]:
     with csv_path.open('r', encoding='utf-8', newline='') as handle:
         reader = csv.DictReader(handle)
@@ -616,6 +736,15 @@ def iter_fee_observations(csv_path: Path) -> Iterator[FeeObservation]:
         reader = csv.DictReader(handle)
         for row in reader:
             yield fee_observation_from_row(row)
+
+
+def iter_spread_capture_observations(csv_path: Path) -> Iterator[SpreadCaptureObservation]:
+    with csv_path.open('r', encoding='utf-8', newline='') as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            if row['lane'] not in SPREAD_CAPTURE_LANE_ORDER:
+                continue
+            yield spread_capture_observation_from_row(row)
 
 
 def assign_bucket(bucket_config: BucketConfig, requested_notional: float) -> str:
@@ -824,6 +953,7 @@ def build_report_caveats(benchmark_status: PublishedBenchmarkStatus) -> list[str
         'This pack is an event-level replay benchmark, not an order-level reconstruction or production-fidelity V3 simulator.',
         'The reporting path reuses mounted RH-03, RH-04, RH-05, and RH-06 artifacts as read-only inputs and does not rebuild those layers.',
         'Fee outputs use the locked RH-20 contract: V2 applies the fixed WHBAR/USDC trader/LP/protocol split, 3A applies the locked V3 scenarios on pure-book filled notional, and 3B blends V3 pure-book fees with V2 residual-backstop fees when applicable.',
+        'Gross spread capture is reported separately as a resting-book proxy versus the study reference price on filled synthetic-book size. It is not full maker PnL, not explicit V2 LP fee accrual, and not V3 maker rebate.',
         'All-in trader cost is reported as execution shortfall on filled size plus explicit trader fees, with headline normalization on requested notional for completion-aware comparisons.',
         'V2 liquidity-side fee output is aggregate active-LP fee accrual, not LP ROI; V3 liquidity-side fee output is maker rebate capture, not full maker PnL.',
         'Canonical `avg_slippage_bps` remains the study-owned external-reference metric. '
@@ -880,6 +1010,9 @@ def build_manifest_outputs(
     fee_comparison_by_bucket_path: Path,
     fee_comparison_by_side_path: Path,
     fee_scenario_comparison_path: Path,
+    spread_capture_comparison_aggregate_path: Path,
+    spread_capture_comparison_by_bucket_path: Path,
+    spread_capture_comparison_by_side_path: Path,
     final_comparison_path: Path,
     reconciliation_path: Path,
     validation_path: Path,
@@ -901,6 +1034,12 @@ def build_manifest_outputs(
         'fee_comparison_by_side_bytes': fee_comparison_by_side_path.stat().st_size,
         'fee_scenario_comparison_path': str(fee_scenario_comparison_path),
         'fee_scenario_comparison_bytes': fee_scenario_comparison_path.stat().st_size,
+        'spread_capture_comparison_aggregate_path': str(spread_capture_comparison_aggregate_path),
+        'spread_capture_comparison_aggregate_bytes': spread_capture_comparison_aggregate_path.stat().st_size,
+        'spread_capture_comparison_by_bucket_path': str(spread_capture_comparison_by_bucket_path),
+        'spread_capture_comparison_by_bucket_bytes': spread_capture_comparison_by_bucket_path.stat().st_size,
+        'spread_capture_comparison_by_side_path': str(spread_capture_comparison_by_side_path),
+        'spread_capture_comparison_by_side_bytes': spread_capture_comparison_by_side_path.stat().st_size,
         'final_comparison_path': str(final_comparison_path),
         'final_comparison_bytes': final_comparison_path.stat().st_size,
         'reconciliation_path': str(reconciliation_path),
@@ -965,6 +1104,22 @@ def serialize_fee_rollup_summary(rollup: FeeRollupSummary) -> dict[str, Any]:
         'protocol_fee_earned_bps_on_requested_notional': rollup.protocol_fee_earned_bps_on_requested_notional,
         'execution_shortfall_bps_on_requested_notional': rollup.execution_shortfall_bps_on_requested_notional,
         'all_in_trader_cost_bps_on_requested_notional': rollup.all_in_trader_cost_bps_on_requested_notional,
+    }
+
+
+def serialize_spread_capture_rollup_summary(rollup: SpreadCaptureRollupSummary) -> dict[str, Any]:
+    return {
+        'row_count': rollup.row_count,
+        'requested_notional_raw_total': rollup.requested_notional_raw_total,
+        'resting_book_filled_size_total': rollup.resting_book_filled_size_total,
+        'resting_book_filled_notional_total': rollup.resting_book_filled_notional_total,
+        'gross_spread_capture_total': rollup.gross_spread_capture_total,
+        'resting_book_fill_rows': rollup.resting_book_fill_rows,
+        'zero_resting_book_fill_rows': rollup.zero_resting_book_fill_rows,
+        'gross_spread_capture_bps_on_requested_notional': rollup.gross_spread_capture_bps_on_requested_notional,
+        'gross_spread_capture_bps_on_resting_book_filled_notional': (
+            rollup.gross_spread_capture_bps_on_resting_book_filled_notional
+        ),
     }
 
 
