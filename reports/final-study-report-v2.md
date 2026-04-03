@@ -8,9 +8,11 @@ The main execution result is unchanged. Both synthetic scenarios materially impr
 
 The explicit fee-transfer layer points in the same direction. Under the default no-xSAUCE schedule, explicit trader fees are about $5.89M for V2, $4.62M for book-only, and $4.67M for hybrid. V2 is the most expensive outcome for traders by a wide margin. Book-only is cheapest on explicit fees. Hybrid sits between the two because it keeps most flow on the lower-fee synthetic book while routing admissible residual size through the V2 backstop.
 
-RH-24 closes an important interpretation gap on maker economics. Rebate-only tables can understate the V3-style maker-side monetization surface, because explicit maker rebate is only one component of book-maker economics. The gross spread-capture proxy on filled resting-book quotes is about $1.82M, or 4.73 bps on book-leg filled notional, for both 3A and the pure-book leg of 3B. That does not make maker PnL solved, but it does show that explicit maker rebate alone is too narrow a lens for comparing V2 LP economics with V3-style maker economics.
+RH-25 closes the remaining structural asymmetry in the provider-side comparison. Rebate-only tables were too narrow, but gross spread-capture-only tables were still incomplete because they credited V2 LP fee accrual without subtracting any divergence/LVR-style drag and credited V3-style maker revenue without subtracting any markout/adverse-selection drag. The new symmetric next-event proxy now applies an adverse-only haircut on both sides.
 
-Explicit liquidity-side fee transfer also differs sharply across scenarios. V2 routes about $4.91M of explicit fee accrual to active LPs. Book-only routes about $77.0k of explicit maker rebate. Hybrid routes the same $77.0k maker rebate plus about $42.9k of residual V2 LP accrual, for about $119.9k of explicit liquidity-side fee transfer. The gross spread-capture proxy shows that the rebate is only one transfer component inside the V3-style book leg.
+On that proxy, V2 still shows the larger provider-side surface in aggregate: about $4.91M of active-LP fee accrual less about $910k of divergence/LVR-style loss proxy, for roughly $4.00M of net provider economics proxy, or 10.18 bps on requested notional. Book-only and the pure-book leg of hybrid show about $1.90M of gross provider revenue proxy, less about $422k of markout proxy, for about $1.48M of net provider economics proxy, or 3.76 bps on requested notional and 3.83 bps on book-leg filled notional. That does not overturn the design call, but it does make the provider-side comparison materially fairer than rebate-only or gross-revenue-only surfaces.
+
+Explicit liquidity-side fee transfer still differs sharply across scenarios. V2 routes about $4.91M of explicit fee accrual to active LPs. Book-only routes about $77.0k of explicit maker rebate. Hybrid routes the same $77.0k maker rebate plus about $42.9k of residual V2 LP accrual, for about $119.9k of explicit liquidity-side fee transfer. The gross spread-capture and symmetric provider-economics layers show that the rebate is only one transfer component inside the V3-style book leg.
 
 The tier-2 10% xSAUCE case lowers explicit trader fees further for the synthetic scenarios without changing execution quality. Aggregate trader fees fall to about $4.16M for book-only and $4.21M for hybrid. In this retained fee model, maker rebate and residual LP accrual stay flat because the discount comes out of protocol take rather than liquidity-side earnings.
 
@@ -26,7 +28,7 @@ That yields the following decision matrix:
 | Best overall price + completion | Hybrid | It keeps the slippage gain while materially reducing incomplete large-order flow. |
 | Best guaranteed completion | V2 baseline | It fully completes the replay set, but at much worse slippage. |
 | Lowest explicit trader fee | Book-only, especially with tier-2 xSAUCE | It avoids the V2 backstop fee burden entirely and gets the full synthetic-scenario fee discount. |
-| Fairest maker-side monetization proxy available in this study | Gross spread capture on filled resting-book quotes | It is still not full maker PnL, but it is materially broader than rebate-only transfer. |
+| Fairest provider-side proxy currently available in this study | Symmetric provider-economics proxy | It subtracts next-event divergence/LVR-style loss from V2 LP fees and next-event markout from V3 maker spread+rebate, rather than comparing only protocol transfer. |
 
 ## What this study shows / does not show
 
@@ -37,13 +39,14 @@ That yields the following decision matrix:
 - The hybrid scenario materially closes that completion gap without giving back the slippage advantage.
 - The fee layer quantifies explicit trader fees, explicit maker rebates, active-LP accrual, protocol earnings, and xSAUCE tier effects across V2, book-only, and hybrid.
 - The gross spread-capture proxy quantifies filled resting-book monetization separately from both explicit maker rebate and V2 LP fee accrual.
+- RH-25 adds a symmetric provider-economics proxy: V2 active-LP fee accrual minus a next-event divergence/LVR-style loss proxy versus V3 gross spread capture plus maker rebate minus a next-event maker markout proxy.
 - The published Lambdaplex 15.47 bps AMM figure can be reproduced on our own V2 baseline using the AMM pre-trade spot gross parity proxy, which avoids a denominator mismatch when comparing the studies at a high level.
 
 ### What this study does not show
 
 - A production-faithful simulation of deployed SaucerSwap V3 or any live generic on-chain order book.
 - A fee-aware rerun of the hybrid routing decision itself. The fee layer here is a reporting-layer reconstruction on the accepted execution surface, not a new routing policy search.
-- Full market-maker profitability. Even with the new spread-capture proxy, the report still excludes inventory carry, quote management, queue dynamics, persistence, adverse selection, and capital utilization.
+- Full LP ROI or full market-maker profitability. Even with the new symmetric provider-economics proxy, the report still excludes inventory carry, quote management, queue dynamics, persistence, adverse selection beyond the next-event markout proxy, and capital utilization.
 - A full cross-study normalization of every Lambdaplex headline beyond the narrow AMM-facing parity note below.
 
 ## Study design
@@ -73,7 +76,7 @@ That yields the following decision matrix:
 
 ### Current source basis
 
-RH-24 rematerialized raw inputs and reran:
+RH-25 rematerialized raw inputs and reran:
 
 - normalization
 - V2 baseline
@@ -81,7 +84,7 @@ RH-24 rematerialized raw inputs and reran:
 - 3B hybrid
 - reporting pack
 
-The fee and spread-capture tables below are derived from those row-level lane outputs.
+The fee, spread-capture, and symmetric provider-economics tables below are derived from those row-level lane outputs.
 
 ### Locked fee model used in this report
 
@@ -102,6 +105,7 @@ Other headline metrics:
 - **Avg completion** = average filled share of requested size across replay units.
 - **Remainder** = total unfilled HBAR volume left on the table, computed as aggregate requested HBAR minus filled HBAR across replay events. It is an absolute leftover amount, not a percentage.
 - **Gross spread capture (USD / bps)** = a study-reference spread-capture proxy on filled resting-book quotes. For 3A this covers the whole synthetic-book fill; for 3B it covers the pure-book leg only and excludes the V2 backstop leg.
+- **Net provider economics proxy** = V2 active-LP fee accrual minus next-event divergence/LVR-style loss proxy, or V3 gross spread capture plus maker rebate minus next-event maker markout. For 3B this remains a pure-book-leg measure and excludes the residual V2 backstop leg.
 
 Fee tables in the main body are deterministic reconstructions from materialized row-level lane outputs plus the locked fee contract above. Dollar figures are rounded for readability in this report.
 
@@ -236,6 +240,39 @@ The maker-side comparison is broader than rebate-only transfer.
 
 If we looked only at explicit protocol transfer, we would see about **$77.0k** of maker rebate in the book-only lane. Once gross spread capture is reported, the maker-side monetization picture is visibly broader: the filled resting-book leg captures about **$1.82M** of study-reference spread. That still does not solve full maker profitability, but it does show that rebate-only tables materially understate the V3-style maker economics surface.
 
+## Symmetric provider-economics proxy (RH-25)
+
+RH-25 adds the missing symmetric haircut layer on top of the fee and spread tables above.
+
+- **V2** is measured as active-LP fee accrual minus an adverse-only next-event divergence/LVR-style loss proxy on filled V2 size.
+- **3A** is measured as gross spread capture plus maker rebate minus an adverse-only next-event maker markout proxy.
+- **3B** uses the same pure-book-leg maker treatment as 3A and explicitly excludes the residual V2 backstop leg from this provider-side proxy so LP and maker surfaces are not silently mixed.
+
+### Aggregate symmetric provider-economics proxy
+
+| Scenario | Explicit transfer (USD) | Gross provider revenue proxy (USD) | Loss proxy (USD) | Net provider economics proxy (USD) | Net provider economics proxy (bps on requested notional) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| V2 baseline | $4,910,721.58 | $4,910,721.58 | $910,447.44 | $4,000,274.15 | 10.18 |
+| Book-only | $77,023.04 | $1,898,883.24 | $422,049.77 | $1,476,833.47 | 3.76 |
+| Hybrid pure-book leg | $77,023.04 | $1,898,883.24 | $422,049.77 | $1,476,833.47 | 3.76 |
+
+Interpretation:
+
+- This is the first provider-side comparison in the study that subtracts an explicit adverse-selection-style proxy on both sides instead of comparing only protocol transfer.
+- On this proxy, V2 still retains the larger provider-side surface in aggregate because explicit LP fee accrual is large and the next-event divergence/LVR haircut remains smaller than total fee accrual.
+- For 3A and the pure-book leg of 3B, rebate-only transfer materially understated the provider-side picture. Most measured maker-side gross revenue comes from spread capture rather than rebate.
+- This still is **not** full LP ROI or full maker profitability. Inventory carry, quote persistence, queue effects, capital usage, and longer-horizon adverse selection remain outside scope.
+
+### $25k+ symmetric provider-economics stress case
+
+| Scenario | Explicit transfer (USD) | Gross provider revenue proxy (USD) | Loss proxy (USD) | Net provider economics proxy (USD) | Net provider economics proxy (bps on requested notional) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| V2 baseline | $160,181.02 | $160,181.02 | $40,760.56 | $119,420.46 | 9.32 |
+| Book-only | $1,056.00 | $196,907.32 | $5,587.16 | $191,320.16 | 14.93 |
+| Hybrid pure-book leg | $1,056.00 | $196,907.32 | $5,587.16 | $191,320.16 | 14.93 |
+
+Takeaway: in the hardest $25k+ bucket, the pure-book maker leg shows much stronger provider-side capture than the aggregate average because large completed clips widen realized spread capture materially while the next-event markout haircut stays comparatively small. That does not change the need for the hybrid backstop on completion, but it does show why gross spread and net provider-economics proxies both matter when interpreting the book leg.
+
 ## Tier-2 (10%) xSAUCE fee case
 
 The tier-2 xSAUCE case changes the fee schedule, not the execution path. Fill rate, completion, slippage, remainder, and gross spread capture therefore stay the same. What changes is the allocation of explicit fees: traders pay less, protocol take falls, and the measured liquidity-side transfer remains unchanged. In this retained model, tier-2 xSAUCE lowers trader fees only; it does not change the modeled maker rebate.
@@ -267,13 +304,14 @@ On the study-owned comparison surface that drives the main decision in this repo
 
 ## Main conclusion
 
-The study now supports five clear conclusions:
+The study now supports six clear conclusions:
 
 1. **A V3-style execution surface materially improves price quality versus the current WHBAR/USDC V2 pool.**
 2. **Book-only is not enough for large clips.** It leaves too much high-notional flow incomplete.
-3. **Hybrid is the best overall internal result.** It preserves the slippage gain while materially improving completion and reducing remainder versus book-only.
+3. **Hybrid is the best overall internal result.** It preserves the slippage gain while materially improves completion and reduces remainder versus book-only.
 4. **The explicit fee-transfer layer strengthens the case against V2 without changing the preferred scenario.** V2 is the worst outcome on explicit trader fees, book-only is the cheapest synthetic path, and hybrid is the best combined price-plus-completion design.
-5. **The new gross spread-capture proxy makes the maker-side comparison fairer.** Rebate-only transfer materially understates V3-style book-maker monetization; the filled resting-book leg captures about $1.82M of study-reference spread even though the explicit maker rebate is only about $77k.
+5. **The gross spread-capture proxy and RH-25 symmetric provider-economics proxy make the provider-side comparison materially fairer.** Rebate-only transfer understated V3-style book-maker monetization, and gross-revenue-only surfaces still overstated both sides by omitting adverse-selection-style loss proxies.
+6. **The new provider-economics proxy does not overturn the design call.** On this study-specific proxy, V2 still shows the larger aggregate provider-side surface, while the pure-book maker leg remains much stronger in the largest bucket. The product/design conclusion still turns on trader execution quality plus completion, where hybrid remains the best overall internal result.
 
 ## Appendix A — Output paths
 
@@ -283,9 +321,11 @@ Tracked repo outputs:
 - `reports/final-study-report-v2.md`
 - `reports/final-comparison.md`
 - `reports/final-comparison-v2.md`
-- `reports/rh24-gross-spread-capture.md`
 - `reports/validation.md`
 - `reports/reconciliation.md`
+- `data/processed/comparison_provider_econ_aggregate.csv`
+- `data/processed/comparison_provider_econ_by_side.csv`
+- `data/processed/comparison_provider_econ_by_bucket.csv`
 
 Historical fee-derivation artifacts retained for provenance:
 
@@ -295,7 +335,7 @@ Historical fee-derivation artifacts retained for provenance:
 
 ## Appendix B — Provenance note
 
-RH-24 rematerialized raw inputs and reran:
+RH-25 rematerialized raw inputs and reran:
 
 - normalization
 - V2 baseline
@@ -303,9 +343,9 @@ RH-24 rematerialized raw inputs and reran:
 - 3B hybrid
 - reporting pack
 
-The fee tables and gross spread-capture tables in this report are derived from those row-level lane outputs.
+The fee tables, gross spread-capture tables, and symmetric provider-economics tables in this report are derived from those row-level lane outputs.
 
-The later RH-12 hybrid rerun had already established the substantive direction of the final result: hybrid materially improves large-clip completion versus the earlier hybrid basis without giving back the low-slippage profile. RH-24 does not change that conclusion; it makes the economics surface more complete and better grounded.
+The earlier RH-12 hybrid rerun had already established the substantive direction of the final result: hybrid materially improves large-clip completion versus the earlier hybrid basis without giving back the low-slippage profile. RH-25 does not change that conclusion; it closes the remaining provider-side asymmetry by adding next-event divergence/LVR-style and markout-style proxy haircuts to the fee/spread surfaces.
 
 ## Appendix C — Future studies
 

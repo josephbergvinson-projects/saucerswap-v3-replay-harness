@@ -1,154 +1,182 @@
 # Final Comparison Report V2
 
-## Source basis and scope
+This standalone docs-branch companion now mirrors the RH-25 rematerialized comparison surface, including the symmetric provider-economics layer.
 
-- This v2 report adds the fee-inclusive layer requested after the originally published replay study.
-- The fee reconstruction in this document is anchored to the last retained structured reporting snapshot: `artifacts/rh09-benchmark-20260325/reporting-root/`.
-- The current `reports/final-comparison.md` on `main` reflects a later RH-12 hybrid-only execution rerun, but the matching structured lane CSVs/summaries were not retained, so exact fee reconstruction on that later basis is not possible from the mounted workspace.
-- To avoid mixing incompatible bases, the execution-quality tables and fee tables in this v2 document are all tied to the retained RH-09 structured snapshot.
-- The later RH-12 hybrid delta is still captured separately below so the report preserves the full study history.
+## Study caveats
 
-## Changelog vs prior final report
+- This pack is an event-level replay benchmark, not an order-level reconstruction or production-fidelity V3 simulator.
+- The reporting path reuses mounted RH-03, RH-04, RH-05, and RH-06 artifacts as read-only inputs and does not rebuild those layers.
+- Fee outputs use the locked RH-20 contract: V2 applies the fixed WHBAR/USDC trader/LP/protocol split, 3A applies the locked V3 scenarios on pure-book filled notional, and 3B blends V3 pure-book fees with V2 residual-backstop fees when applicable.
+- Gross spread capture is reported separately as a resting-book proxy versus the study reference price on filled synthetic-book size. It is not full maker PnL, not explicit V2 LP fee accrual, and not V3 maker rebate.
+- Provider-economics outputs add a symmetric next-event proxy layer: V2 active-LP fee accrual minus adverse-only divergence/LVR-style loss versus gross spread capture plus maker rebate minus adverse-only maker markout for V3 book flow. This remains a proxy layer, not full LP ROI or full maker inventory PnL.
+- All-in trader cost is reported as execution shortfall on filled size plus explicit trader fees, with headline normalization on requested notional for completion-aware comparisons.
+- V2 liquidity-side fee output is aggregate active-LP fee accrual, not LP ROI; V3 liquidity-side fee output is maker rebate capture, not full maker PnL.
+- Canonical `avg_slippage_bps` remains the study-owned external-reference metric. `avg_amm_pre_trade_spot_gross_slippage_bps` is a separate Lambdaplex-parity proxy based on the RH-13 best-supported reconstructed AMM pre-trade pool spot plus a symmetric reference denominator.
+- The current Lambdaplex published panel is placeholder or incomplete in the local benchmark contract, so no benchmark metrics were merged into the comparison tables.
 
-- Added explicit trader-fee, liquidity-side-earnings, and protocol-earnings surfaces for V2 / 3A / 3B.
-- Added xSAUCE fee sensitivity (`no_xsauce` vs `tier2_10pct`).
-- Added an explicit reconstruction note for the fee layer and a later-RH-12 delta note for 3B.
-- Preserved the execution-quality comparison as a separate surface rather than silently replacing it with fee-inclusive metrics.
+## Headline lane comparison
 
-## Locked fee model used in this report
-
-- **V2 WHBAR/USDC**: trader pays `15.0 bps`, active LPs earn `12.5 bps`, protocol earns `2.5 bps`.
-- **V3 WHBAR/USDC / no xSAUCE**: trader pays `12.0 bps`, maker earns `0.20 bps`, protocol earns `11.8 bps`.
-- **V3 WHBAR/USDC / tier 2 (10%)**: trader pays `10.8 bps`, maker earns `0.20 bps`, protocol earns `10.6 bps`.
-- **3B hybrid attribution rule**: pure-book notional uses the V3 schedule; the residual notional above 3A for the same segment is treated as V2 backstop notional and uses the V2 schedule.
-
-## Validation / reconstruction note
-
-- The retained RH-09 structured snapshot still validates cleanly at the aggregate, side, and bucket level.
-- Fee rows in this v2 report are deterministic transformations of retained `filled_notional_usdc` plus the locked RH-20/21 fee contract.
-- Because replay-unit lane files are no longer mounted, this report **cannot** surface exact replay-unit-level `v3_min_order_ineligible` counts or the exact RH-22 all-in trader-cost USD rollups that depend on row-level execution-shortfall reconstruction.
-- V2 liquidity-side figures are aggregate active-LP fee accrual, not LP ROI. V3 liquidity-side figures are maker rebate capture, not full market-maker PnL.
-
-## Execution-quality headline snapshot (retained structured basis)
-
-| Lane | Rows | Fill rate | Avg completion | Avg study slippage (bps) |
-| --- | --- | --- | --- | --- |
-| V2 baseline | 7255957 | 1 | 1 | 19.966868 |
-| 3A pure-book | 7255957 | 0.982051 | 0.999813 | 2.261848 |
-| 3B hybrid | 7255957 | 0.987708 | 0.999901 | 2.260515 |
-
-## Explicit fee economics — headline aggregate (`no_xsauce` default)
-
-| Lane | Trader fee (USD) | Maker rebate (USD) | V2 LP accrual (USD) | Liquidity-side total (USD) | Protocol earnings (USD) | Trader fee (bps, requested) | Trader fee (bps, filled) |
+| Lane | Rows | Fill rate | Avg completion | Avg study slippage (bps) | Avg parity proxy slippage (bps) | Remainder (HBAR) | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| V2 baseline | 5,892,865.90 | 0.00 | 4,910,721.58 | 4,910,721.58 | 982,144.32 | 15 | 15 |
-| 3A pure-book | 4,621,382.48 | 77,023.04 | 0.00 | 77,023.04 | 4,544,359.44 | 11.763502 | 12 |
-| 3B hybrid | 4,662,788.54 | 77,023.04 | 34,505.05 | 111,528.09 | 4,551,260.45 | 11.868899 | 12.02135 |
+| V2 baseline | 7255957 | 1 | 1 | 19.966868100735 | 15.472290058782 | 0 | Observed realized V2 execution under the event-level replay contract. |
+| 3A pure-book | 7255957 | 0.982051114481 | 0.999813179401 | 2.261847743867 | -2.186952348264 | 431584607.835286259651 | Study-owned replenishing synthetic book; partial fills remain explicit. |
+| 3B hybrid | 7255957 | 0.989470558433 | 0.999925922904 | 2.261091936527 | -2.18773891321 | 253182566.923353403807 | Mounted 3A fill plus residual V2 backstop only when the frozen admissibility rule passes. |
 
-## Fee side split (`no_xsauce` default)
+## Fee-inclusive economics
 
-| Side | Lane | Trader fee (USD) | Liquidity-side total (USD) | Protocol earnings (USD) | Trader fee (bps, requested) |
+| Lane | Trader fee (USD) | Liquidity-side earnings (USD) | Protocol earnings (USD) | Execution shortfall (USD) | All-in trader cost (USD) | Trader fee (bps, requested) | All-in cost (bps, requested) | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| V2 baseline | 5892865.900778388605 | 4910721.583980700001 | 982144.316796322237 | 9555763.063907330856 | 15448628.96468571946 | 15.000000000006 | 39.323724376584 | Fixed V2 fee split: active-LP accrual plus protocol cut. Default reported V3 scenario: v2_fixed. |
+| 3A pure-book | 4621382.480131900869 | 77023.041335476708 | 4544359.438796410337 | 1821860.196653133724 | 6443242.676785035059 | 11.76350155751 | 16.400956984113 | Liquidity-side earnings are maker rebates only. Default reported V3 scenario: no_xsauce. V3 min-order ineligible rows surfaced separately: 9729. |
+| 3B hybrid | 4672841.251625726931 | 119905.350914102295 | 4552935.90071191173 | 1929948.861754297744 | 6602790.11338002421 | 11.894487326643 | 16.807077128237 | Blended route: V3 pure-book fees plus V2 residual-backstop fees when routed. Default reported V3 scenario: no_xsauce. V3 min-order ineligible rows surfaced separately: 9729. |
+
+## Gross spread capture proxy
+
+Filled resting-book leg only for 3A and the pure-book leg of 3B. This is a study-reference spread-capture proxy, not full maker PnL, not explicit LP fee accrual, and not V3 maker rebate.
+
+| Lane | Rows | Book-leg fill rows | Book-leg filled notional (USD) | Gross spread capture (USD) | Gross spread capture (bps, book leg) | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| 3A pure-book | 7255957 | 7255957 | 3851152066.77428817749 | 1821860.196653133724 | 4.730688804452 | Filled resting-book quotes only. Proxy is versus the study reference price, not full maker PnL or V3 rebate. |
+| 3B hybrid | 7255957 | 7255957 | 3851152066.77428817749 | 1821860.196653133724 | 4.730688804452 | Pure-book leg only. Excludes the V2 backstop leg, explicit V2 LP fee accrual, and V3 maker rebate. |
+
+Exact figures require materialized `data/processed/lane_3a_pure_book.csv` and `data/processed/lane_3b_hybrid.csv`. If those row-level outputs are absent in the mounted checkout, rerun `PYTHONPATH=src python3 -m saucerswap_v3_replay.cli pure-book --root .`, `PYTHONPATH=src python3 -m saucerswap_v3_replay.cli hybrid --root .`, and `PYTHONPATH=src python3 -m saucerswap_v3_replay.cli reporting-pack --root .`.
+
+## Symmetric provider-economics comparison
+
+The symmetric provider-economics layer uses the next row in each lane file as the canonical next-event reference. Favorable moves clip to zero; the loss proxies are adverse-only and do not claim full LP ROI or full maker inventory PnL.
+
+### Explicit protocol transfer layer
+
+| Lane | Horizon rows | Unavailable | LP fee accrual (USD) | Maker rebate (USD) | Explicit transfer (USD) | Explicit transfer (bps, requested) | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| V2 baseline | 7255956 | 1 | 4910721.583980700001 | 0 | 4910721.583980700001 | 12.500000000002 | Active LP fee accrual minus adverse-only next-event divergence/LVR-style loss proxy on filled V2 size. |
+| 3A pure-book | 7255956 | 1 | 0 | 77023.041335480098 | 77023.041335480098 | 0.196058359292 | Gross spread capture plus maker rebate minus adverse-only next-event maker markout on filled resting-book size. |
+| 3B hybrid | 7255956 | 1 | 0 | 77023.041335479706 | 77023.041335479706 | 0.196058359292 | Pure-book leg only for spread, rebate, and markout. Excludes the V2 backstop leg and any residual V2 LP fee accrual. |
+
+### Gross provider revenue proxy layer
+
+| Lane | LP fee accrual (USD) | Maker rebate (USD) | Gross spread capture (USD) | Gross provider revenue (USD) | Gross provider revenue (bps, requested) | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| V2 baseline | 4910721.583980700001 | 0 | 0 | 4910721.583980700001 | 12.500000000002 | Active LP fee accrual minus adverse-only next-event divergence/LVR-style loss proxy on filled V2 size. |
+| 3A pure-book | 0 | 77023.041335480098 | 1821860.196653133724 | 1898883.237988613779 | 4.833513785895 | Gross spread capture plus maker rebate minus adverse-only next-event maker markout on filled resting-book size. |
+| 3B hybrid | 0 | 77023.041335479706 | 1821860.196653133724 | 1898883.237988613546 | 4.833513785895 | Pure-book leg only for spread, rebate, and markout. Excludes the V2 backstop leg and any residual V2 LP fee accrual. |
+
+### Net provider-economics proxy layer
+
+| Lane | LP divergence/LVR proxy (USD) | Maker markout proxy (USD) | Net provider economics (USD) | Net provider economics (bps, requested) | Maker net (bps, book leg) | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| V2 baseline | 910447.435884958599 | 0 | 4000274.148095092271 | 10.182500880179 | 0 | Active LP fee accrual minus adverse-only next-event divergence/LVR-style loss proxy on filled V2 size. |
+| 3A pure-book | 0 | 422049.771206624049 | 1476833.466783466283 | 3.759206873999 | 3.834783569116 | Gross spread capture plus maker rebate minus adverse-only next-event maker markout on filled resting-book size. |
+| 3B hybrid | 0 | 422049.771206624049 | 1476833.466783466516 | 3.759206873999 | 3.834783569116 | Pure-book leg only for spread, rebate, and markout. Excludes the V2 backstop leg and any residual V2 LP fee accrual. |
+
+## Side split
+
+| Side | Lane | Rows | Fill rate | Avg completion | Avg study slippage (bps) | Avg parity proxy slippage (bps) |
+| --- | --- | --- | --- | --- | --- | --- |
+| buy | V2 baseline | 3770999 | 1 | 1 | 20.113965383082 | 15.464504914751 |
+| buy | 3A pure-book | 3770999 | 0.983074163236 | 0.999819285866 | 2.249938661012 | -2.338069382124 |
+| buy | 3B hybrid | 3770999 | 0.991056135566 | 0.999936377292 | 2.248739661386 | -2.339336100196 |
+| sell | V2 baseline | 3484958 | 1 | 1 | 19.807697211506 | 15.480714197713 |
+| sell | 3A pure-book | 3484958 | 0.981026559784 | 0.999806571725 | 2.274734309669 | -2.023431817006 |
+| sell | 3B hybrid | 3484958 | 0.987882647311 | 0.999914610432 | 2.274458071277 | -2.023698818458 |
+
+## Fee side split
+
+| Side | Lane | Trader fee (USD) | Liquidity-side earnings (USD) | Protocol earnings (USD) | All-in cost (bps, requested) |
 | --- | --- | --- | --- | --- | --- |
-| buy | V2 baseline | 2,948,018.93 | 2,456,682.44 | 491,336.49 | 15 |
-| buy | 3A pure-book | 2,309,875.82 | 38,497.93 | 2,271,377.89 | 11.753024 |
-| buy | 3B hybrid | 2,331,907.81 | 56,857.92 | 2,275,049.88 | 11.865126 |
-| sell | V2 baseline | 2,944,846.97 | 2,454,039.14 | 490,807.83 | 15 |
-| sell | 3A pure-book | 2,311,506.66 | 38,525.11 | 2,272,981.55 | 11.77399 |
-| sell | 3B hybrid | 2,330,880.73 | 54,670.17 | 2,276,210.56 | 11.872675 |
+| buy | V2 baseline | 2948018.932033283636 | 2456682.443361248821 | 491336.488672551233 | 38.640606261765 |
+| buy | 3A pure-book | 2309875.816310321912 | 38497.930271843332 | 2271377.8860384617 | 16.382993999969 |
+| buy | 3B hybrid | 2337666.305457924027 | 61656.67122814816 | 2276009.634229701478 | 16.795680016745 |
+| sell | V2 baseline | 2944846.968742064666 | 2454039.140618281439 | 490807.828123782412 | 40.007578293832 |
+| sell | 3A pure-book | 2311506.663819153327 | 38525.1110637116 | 2272981.552755231969 | 16.418939316604 |
+| sell | 3B hybrid | 2335174.946166247595 | 58248.679686032061 | 2276926.266479551792 | 16.818486515823 |
 
-## Fee bucket split (`no_xsauce` default)
+## Provider-economics side split
 
-| Bucket | Lane | Trader fee (USD) | Liquidity-side total (USD) | Protocol earnings (USD) | Trader fee (bps, requested) |
+| Side | Lane | Horizon rows | Explicit transfer (USD) | Gross provider revenue (USD) | Net provider economics (USD) | Net provider economics (bps, requested) |
+| --- | --- | --- | --- | --- | --- | --- |
+| buy | V2 baseline | 3770998 | 2456682.443361248821 | 2456682.443361248821 | 1923747.703973239055 | 9.788341331882 |
+| buy | 3A pure-book | 3770998 | 38497.930271843332 | 948447.212315044366 | 736601.750429757754 | 3.74794955907 |
+| buy | 3B hybrid | 3770998 | 38497.930271843346 | 948447.212315044366 | 736601.750429757871 | 3.74794955907 |
+| sell | V2 baseline | 3484958 | 2454039.140618281439 | 2454039.140618281439 | 2076526.444121820386 | 10.577084986909 |
+| sell | 3A pure-book | 3484958 | 38525.1110637116 | 950436.025675554527 | 740231.716352928313 | 3.77047631444 |
+| sell | 3B hybrid | 3484958 | 38525.111063711287 | 950436.025675554294 | 740231.716352927964 | 3.77047631444 |
+
+## Bucket split
+
+| Bucket | Lane | Rows | Requested notional (USDC) | Fill rate | Avg completion | Avg study slippage (bps) | Avg parity proxy slippage (bps) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| <1k | V2 baseline | 6034242 | 1229219632.47347 | 1 | 1 | 19.234413439835 | 15.184247820931 |
+| <1k | 3A pure-book | 6034242 | 1229219632.47347 | 1 | 1 | 2.000191311834 | -2.009495178662 |
+| <1k | 3B hybrid | 6034242 | 1229219632.47347 | 1 | 1 | 2.000191311666 | -2.009495178811 |
+| 1k-5k | V2 baseline | 1165115 | 2156022220.233877 | 1 | 1 | 23.520931891209 | 16.525407976454 |
+| 1k-5k | 3A pure-book | 1165115 | 2156022220.233877 | 1 | 1 | 3.073675293403 | -3.853673561201 |
+| 1k-5k | 3B hybrid | 1165115 | 2156022220.233877 | 1 | 1 | 3.073675293403 | -3.853673561187 |
+| 5k-10k | V2 baseline | 44226 | 278436310.669434 | 1 | 1 | 22.417523452719 | 20.090822903854 |
+| 5k-10k | 3A pure-book | 44226 | 278436310.669434 | 1 | 1 | 9.591722916248 | 7.373248320037 |
+| 5k-10k | 3B hybrid | 44226 | 278436310.669434 | 1 | 1 | 9.591722916248 | 7.373248319901 |
+| 10k-25k | V2 baseline | 9734 | 136754285.894524 | 1 | 1 | 27.214279808663 | 32.417937489044 |
+| 10k-25k | 3A pure-book | 9734 | 136754285.894524 | 0.985056295039 | 0.990562075735 | 24.525290187137 | 29.926721090273 |
+| 10k-25k | 3B hybrid | 9734 | 136754285.894524 | 0.999085179852 | 0.999562502701 | 24.467398459587 | 29.867082861841 |
+| 25k+ | V2 baseline | 2640 | 128144817.912701 | 1 | 1 | 57.84032380474 | 69.224154100523 |
+| 25k+ | 3A pure-book | 2640 | 128144817.912701 | 0.421620518287 | 0.521328227636 | 37.16426009997 | 49.213974921147 |
+| 25k+ | 3B hybrid | 2640 | 128144817.912701 | 0.651080608121 | 0.798014535901 | 35.300401592967 | 47.272019609657 |
+
+## Fee bucket split
+
+| Bucket | Lane | Trader fee (USD) | Liquidity-side earnings (USD) | Protocol earnings (USD) | All-in cost (bps, requested) |
 | --- | --- | --- | --- | --- | --- |
-| <1k | V2 baseline | 1,843,829.45 | 1,536,524.54 | 307,304.91 | 15 |
-| <1k | 3A pure-book | 1,474,995.78 | 24,583.26 | 1,450,412.51 | 11.999449 |
-| <1k | 3B hybrid | 1,474,995.78 | 24,583.26 | 1,450,412.51 | 11.999449 |
-| 1k-5k | V2 baseline | 3,234,033.33 | 2,695,027.78 | 539,005.56 | 15 |
-| 1k-5k | 3A pure-book | 2,587,302.08 | 43,121.70 | 2,544,180.38 | 12.00035 |
-| 1k-5k | 3B hybrid | 2,587,302.08 | 43,121.70 | 2,544,180.38 | 12.00035 |
-| 5k-10k | V2 baseline | 417,654.47 | 348,045.39 | 69,609.08 | 15 |
-| 5k-10k | 3A pure-book | 334,114.32 | 5,568.57 | 328,545.75 | 11.999668 |
-| 5k-10k | 3B hybrid | 334,114.32 | 5,568.57 | 328,545.75 | 11.999668 |
-| 10k-25k | V2 baseline | 205,131.43 | 170,942.86 | 34,188.57 | 15 |
-| 10k-25k | 3A pure-book | 161,610.30 | 2,693.51 | 158,916.80 | 11.817568 |
-| 10k-25k | 3B hybrid | 163,805.82 | 4,523.10 | 159,282.72 | 11.978112 |
-| 25k+ | V2 baseline | 192,217.23 | 160,181.02 | 32,036.20 | 15 |
-| 25k+ | 3A pure-book | 63,360.00 | 1,056.00 | 62,304.00 | 4.944406 |
-| 25k+ | 3B hybrid | 102,570.54 | 33,731.45 | 68,839.09 | 8.004267 |
+| <1k | V2 baseline | 1843829.448710236233 | 1536524.54059203621 | 307304.908118327439 | 35.367613233724 |
+| <1k | 3A pure-book | 1474995.77532736701 | 24583.262922141206 | 1450412.512405366404 | 13.999355658987 |
+| <1k | 3B hybrid | 1474995.775327367475 | 24583.262922140908 | 1450412.512405366404 | 13.999355658987 |
+| 1k-5k | V2 baseline | 3234033.330350778066 | 2695027.775292416103 | 539005.555058522848 | 38.633671707385 |
+| 1k-5k | 3A pure-book | 2587302.081005099695 | 43121.701350119642 | 2544180.379655981436 | 15.463897687953 |
+| 1k-5k | 3B hybrid | 2587302.081005099695 | 43121.701350119649 | 2544180.379655981436 | 15.463897687953 |
+| 5k-10k | V2 baseline | 417654.466004288872 | 348045.388336791017 | 69609.077667362828 | 37.135824016562 |
+| 5k-10k | 3A pure-book | 334114.322766133875 | 5568.572046102227 | 328545.750720037264 | 21.93357719158 |
+| 5k-10k | 3B hybrid | 334114.322766133875 | 5568.572046102227 | 328545.750720037264 | 21.93357719158 |
+| 10k-25k | V2 baseline | 205131.428841784713 | 170942.857368153636 | 34188.571473630873 | 42.697848003029 |
+| 10k-25k | 3A pure-book | 161610.301030387345 | 2693.505017173186 | 158916.796013218904 | 37.910471250018 |
+| 10k-25k | 3B hybrid | 164640.651456483756 | 5218.797038920273 | 159421.854417564202 | 38.587783321107 |
+| 25k+ | V2 baseline | 192217.226869051519 | 160181.022390876693 | 32036.20447817527 | 90.035594869025 |
+| 25k+ | 3A pure-book | 63360 | 1055.999999999966 | 62303.999999997352 | 20.227998515253 |
+| 25k+ | 3B hybrid | 111788.421068254072 | 41413.017556878433 | 70375.403511375509 | 31.95573797303 |
 
-## xSAUCE fee sensitivity — headline aggregate
+## Provider-economics bucket split
 
-| Lane | Scenario | Trader fee (USD) | Liquidity-side total (USD) | Protocol earnings (USD) | Trader fee (bps, requested) |
-| --- | --- | --- | --- | --- | --- |
-| V2 baseline | v2_fixed | 5,892,865.90 | 4,910,721.58 | 982,144.32 | 15 |
-| 3A pure-book | no_xsauce | 4,621,382.48 | 77,023.04 | 4,544,359.44 | 11.763502 |
-| 3A pure-book | tier2_10pct | 4,159,244.23 | 77,023.04 | 4,082,221.19 | 10.587151 |
-| 3B hybrid | no_xsauce | 4,662,788.54 | 111,528.09 | 4,551,260.45 | 11.868899 |
-| 3B hybrid | tier2_10pct | 4,200,650.29 | 111,528.09 | 4,089,122.20 | 10.692548 |
+| Bucket | Lane | Horizon rows | Requested notional (USDC) | Gross provider revenue (USD) | Net provider economics (USD) | Net provider economics (bps, requested) |
+| --- | --- | --- | --- | --- | --- | --- |
+| <1k | V2 baseline | 6034242 | 1229219632.47347 | 1536524.54059203621 | 1298652.997714940924 | 10.564857275357 |
+| <1k | 3A pure-book | 6034242 | 1229219632.47347 | 270415.769394995878 | 221230.902585964126 | 1.799767077758 |
+| <1k | 3B hybrid | 6034242 | 1229219632.47347 | 270415.769394995586 | 221230.90258596401 | 1.799767077758 |
+| 1k-5k | V2 baseline | 1165114 | 2156022220.233877 | 2695027.775292416103 | 2266877.369486061856 | 10.514165151972 |
+| 1k-5k | 3A pure-book | 1165114 | 2156022220.233877 | 789870.32300784532 | 521557.908204544743 | 2.419074828218 |
+| 1k-5k | 3B hybrid | 1165114 | 2156022220.233877 | 789870.32300784532 | 521557.908204544743 | 2.419074828218 |
+| 5k-10k | V2 baseline | 44226 | 278436310.669434 | 348045.388336791017 | 234502.485344976943 | 8.422122990395 |
+| 5k-10k | 3A pure-book | 44226 | 278436310.669434 | 282164.680580649001 | 215946.571679226821 | 7.755690023332 |
+| 5k-10k | 3B hybrid | 44226 | 278436310.669434 | 282164.680580649001 | 215946.571679226821 | 7.755690023332 |
+| 10k-25k | V2 baseline | 9734 | 136754285.894524 | 170942.857368153636 | 80820.834649088778 | 5.909930655586 |
+| 10k-25k | 3A pure-book | 9734 | 136754285.894524 | 359525.146358892554 | 326777.921761862584 | 23.8952600004 |
+| 10k-25k | 3B hybrid | 9734 | 136754285.894524 | 359525.146358892554 | 326777.921761862584 | 23.8952600004 |
+| 25k+ | V2 baseline | 2640 | 128144817.912701 | 160181.022390876693 | 119420.460900039063 | 9.319179881421 |
+| 25k+ | 3A pure-book | 2640 | 128144817.912701 | 196907.31864754454 | 191320.162551295565 | 14.929996051938 |
+| 25k+ | 3B hybrid | 2640 | 128144817.912701 | 196907.31864754454 | 191320.162551295565 | 14.929996051938 |
 
-## Interpretation
+## xSAUCE fee scenario sensitivity
 
-- V2 charges the highest explicit trader fee at a fixed `15 bps`, but routes all of that fee to active LPs plus the protocol.
-- 3A lowers explicit trader fees versus V2 while redirecting the liquidity-side transfer from LP accrual to maker rebate capture.
-- 3B sits between 3A and V2: its explicit fee layer is lower than V2 because much of the flow remains on the pure book, but higher than 3A because the residual backstop inherits V2 fees.
-- The xSAUCE tier-2 case lowers explicit trader fees for 3A/3B while leaving maker rebates unchanged, with the discount flowing out of protocol take.
+| Lane | Scenario | Trader fee (USD) | Liquidity-side earnings (USD) | Protocol earnings (USD) | All-in cost (bps, requested) | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| V2 baseline | v2_fixed | 5892865.900778388605 | 4910721.583980700001 | 982144.316796322237 | 39.323724376584 | Fixed V2 fee split: active-LP accrual plus protocol cut. Default reported V3 scenario: v2_fixed. |
+| 3A pure-book | no_xsauce | 4621382.480131900869 | 77023.041335476708 | 4544359.438796410337 | 16.400956984113 | Liquidity-side earnings are maker rebates only. Default reported V3 scenario: no_xsauce. V3 min-order ineligible rows surfaced separately: 9729. |
+| 3A pure-book | tier2_10pct | 4159244.232117983513 | 77023.041335476708 | 4082221.190781499725 | 15.22460682836 | Liquidity-side earnings are maker rebates only. Default reported V3 scenario: no_xsauce. V3 min-order ineligible rows surfaced separately: 9729. |
+| 3B hybrid | no_xsauce | 4672841.251625726931 | 119905.350914102295 | 4552935.90071191173 | 16.807077128237 | Blended route: V3 pure-book fees plus V2 residual-backstop fees when routed. Default reported V3 scenario: no_xsauce. V3 min-order ineligible rows surfaced separately: 9729. |
+| 3B hybrid | tier2_10pct | 4210703.003612215631 | 119905.350914102295 | 4090797.652697045822 | 15.630726972485 | Blended route: V3 pure-book fees plus V2 residual-backstop fees when routed. Default reported V3 scenario: no_xsauce. V3 min-order ineligible rows surfaced separately: 9729. |
 
-## Later RH-12 hybrid-only rerun note
+## Benchmark panel status
 
-- The later RH-12 rerun improved 3B execution-quality metrics versus the retained RH-09 structured snapshot, especially in larger buckets.
-- Those hybrid-only execution deltas are preserved here for completeness, but fee totals in this v2 report remain tied to the retained RH-09 structured pack because the later filled-notional tables were not retained.
+| Benchmark | Status | Comparable | Source notes | Published headline metrics | Provenance | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| Lambdaplex published panel | incomplete | false | benchmarks/lambdaplex/source-notes.md | {"reported_average_amm_slippage_bps": 15.47, "reported_claim_scope": "slide-reported published benchmark figures captured for provenance only", "reported_grid_strategy_slippage_bps": 2.82} | local_payload_state=reported_partial_slide_metrics_only \| local_payload_complete=false \| The locally captured Lambdaplex slide values disclose only partial slippage figures and do not provide the required comparable fields or enough methodological detail to map into comparable_headline_metrics. \| mapping_notes=Only comparable_headline_metrics are eligible for merge into reporting outputs.; The slide-reported 15.47 / 2.82 values are stored as raw headline_metrics provenance only.; The harness now also reports a separate `avg_amm_pre_trade_spot_gross_slippage_bps` parity proxy using the RH-13 best-supported reconstructed AMM pre-trade pool-spot gross convention.; That parity proxy is local study output, not a confirmed Lambdaplex methodological disclosure and not a substitute for comparable_headline_metrics.; Required comparable fields still missing locally: fill_rate, avg_completion_ratio, avg_abs_slippage_bps, remainder_size_hbar.; Weighting basis, reference-price convention, fee treatment, and completion/failure treatment are not disclosed well enough to normalize the slide values into the study schema. \| captured_artifacts=benchmarks/lambdaplex/published-results.json, benchmarks/lambdaplex/source-notes.md, operator-provided Lambdaplex slide screenshots (2026-03-25) | Published panel is placeholder or incomplete; no comparable benchmark metrics were merged. Populate comparable_headline_metrics only from locally tracked published Lambdaplex outputs with explicit mapping support. Do not treat the slide-reported 15.47 / 2.82 bps figures as apples-to-apples comparable with the study rollups yet. Use the local `avg_amm_pre_trade_spot_gross_slippage_bps` field only as a best-supported Lambdaplex-parity proxy, not as confirmation of Lambdaplex's undisclosed methodology. Do not invent benchmark values when rerunning reporting-pack. |
 
-# RH-12 before/after delta summary
-
-Comparison basis:
-- Before: `artifacts/rh09-benchmark-20260325/reporting-root/data/processed/`
-- After: `artifacts/rh12-large-clip-20260325/rerun-root/data/processed/`
-- Lane: `3b_hybrid`
-
-## Aggregate
-
-| metric | before | after | delta |
-| --- | ---: | ---: | ---: |
-| fill_rate | 0.98770777613 | 0.989470558433 | +0.001762782303 |
-| avg_completion_ratio | 0.999901267765 | 0.999925922904 | +2.4655139e-05 |
-| avg_slippage_bps | 2.26051499944 | 2.26109193653 | +0.000576937089 |
-| avg_abs_slippage_bps | 2.2615340605 | 2.26211099759 | +0.00057693709 |
-| remainder_size_hbar | 295569026.428 | 253182566.923 | -42386459.505 |
-| full_fill_rows | 7252757 | 7254843 | +2086 |
-| partial_fill_rows | 3200 | 1114 | -2086 |
-| admissibility_pass_rows | 25780 | 27885 | +2105 |
-| admissibility_fail_rows | 3009 | 904 | -2105 |
-
-## 10k-25k
-
-| metric | before | after | delta |
-| --- | ---: | ---: | ---: |
-| fill_rate | 0.994271699167 | 0.999085179852 | +0.004813480685 |
-| avg_completion_ratio | 0.997076310936 | 0.999562502701 | +0.002486191765 |
-| avg_slippage_bps | 24.3783611372 | 24.4673984596 | +0.089037322354 |
-| avg_abs_slippage_bps | 24.4128664793 | 24.5019038017 | +0.089037322354 |
-| remainder_size_hbar | 5077348.01765 | 810861.789227 | -4266486.22842 |
-| full_fill_rows | 9194 | 9710 | +516 |
-| partial_fill_rows | 540 | 24 | -516 |
-| admissibility_pass_rows | 2168 | 2684 | +516 |
-| admissibility_fail_rows | 540 | 24 | -516 |
-
-## 25k+
-
-| metric | before | after | delta |
-| --- | ---: | ---: | ---: |
-| fill_rate | 0.598377402399 | 0.651080608121 | +0.052703205722 |
-| avg_completion_ratio | 0.739417552154 | 0.798014535901 | +0.058596983747 |
-| avg_slippage_bps | 34.0429995405 | 35.300401593 | +1.25740205242 |
-| avg_abs_slippage_bps | 36.7166314612 | 37.9740335137 | +1.25740205242 |
-| remainder_size_hbar | 290491678.411 | 252371705.134 | -38119973.2766 |
-| full_fill_rows | 1343 | 1749 | +406 |
-| partial_fill_rows | 1297 | 891 | -406 |
-| admissibility_pass_rows | 1353 | 1760 | +407 |
-| admissibility_fail_rows | 1287 | 880 | -407 |
-
-## Current main report reference
-
-- `reports/final-comparison.md` remains preserved as the later execution-quality / parity-proxy report on `main`.
-- This v2 document does not overwrite that report basis; it adds the fee layer on the last retained structured snapshot and carries the later RH-12 hybrid delta separately.
-- The current main report still contains the latest RH-12 hybrid execution figures (for example 3B aggregate `fill_rate = 0.989470558433` and `avg_slippage_bps = 2.261091936527`), but exact fee totals on that later basis cannot be reconstructed without the missing structured lane outputs.
+Lambdaplex market: `HBAR/USDC`
+Lambdaplex benchmark schema: `rh09_lambdaplex_published_panel_v1`
