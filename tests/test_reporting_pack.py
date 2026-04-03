@@ -16,6 +16,10 @@ from saucerswap_v3_replay.fees import (
 from saucerswap_v3_replay.metrics.summaries import LaneObservation, roll_up_observations
 from saucerswap_v3_replay.normalize.events import format_decimal, format_scaled_int
 from saucerswap_v3_replay.reporting.fee_views import execution_shortfall_usd
+from saucerswap_v3_replay.reporting.spread_capture_views import (
+    gross_spread_capture_usd,
+    spread_capture_observation_from_row,
+)
 from saucerswap_v3_replay.reporting.pack import assign_bucket, load_bucket_config, run_reporting_pack
 
 
@@ -101,6 +105,9 @@ class ReportingPackTests(unittest.TestCase):
                 'fee_bucket': first.fee_comparison_by_bucket_path.read_text(encoding='utf-8'),
                 'fee_side': first.fee_comparison_by_side_path.read_text(encoding='utf-8'),
                 'fee_scenarios': first.fee_scenario_comparison_path.read_text(encoding='utf-8'),
+                'spread_capture_aggregate': first.spread_capture_comparison_aggregate_path.read_text(encoding='utf-8'),
+                'spread_capture_bucket': first.spread_capture_comparison_by_bucket_path.read_text(encoding='utf-8'),
+                'spread_capture_side': first.spread_capture_comparison_by_side_path.read_text(encoding='utf-8'),
                 'final_report': first.final_comparison_path.read_text(encoding='utf-8'),
                 'reconciliation': first.reconciliation_path.read_text(encoding='utf-8'),
                 'validation': first.validation_path.read_text(encoding='utf-8'),
@@ -115,6 +122,9 @@ class ReportingPackTests(unittest.TestCase):
                 'fee_bucket': second.fee_comparison_by_bucket_path.read_text(encoding='utf-8'),
                 'fee_side': second.fee_comparison_by_side_path.read_text(encoding='utf-8'),
                 'fee_scenarios': second.fee_scenario_comparison_path.read_text(encoding='utf-8'),
+                'spread_capture_aggregate': second.spread_capture_comparison_aggregate_path.read_text(encoding='utf-8'),
+                'spread_capture_bucket': second.spread_capture_comparison_by_bucket_path.read_text(encoding='utf-8'),
+                'spread_capture_side': second.spread_capture_comparison_by_side_path.read_text(encoding='utf-8'),
                 'final_report': second.final_comparison_path.read_text(encoding='utf-8'),
                 'reconciliation': second.reconciliation_path.read_text(encoding='utf-8'),
                 'validation': second.validation_path.read_text(encoding='utf-8'),
@@ -168,6 +178,42 @@ class ReportingPackTests(unittest.TestCase):
             self.assertIn('maker rebates only', fee_aggregate_rows[1]['notes'])
             self.assertIn('Blended route', fee_aggregate_rows[2]['notes'])
 
+            spread_capture_rows = self._read_csv(result.spread_capture_comparison_aggregate_path)
+            self.assertEqual(
+                [row['lane'] for row in spread_capture_rows],
+                ['3a_pure_book', '3b_hybrid'],
+            )
+            pure_book_spread_capture = next(row for row in spread_capture_rows if row['lane'] == '3a_pure_book')
+            hybrid_spread_capture = next(row for row in spread_capture_rows if row['lane'] == '3b_hybrid')
+            self.assertEqual(pure_book_spread_capture['gross_spread_capture_usd'], '47')
+            self.assertEqual(hybrid_spread_capture['gross_spread_capture_usd'], '47')
+            self.assertEqual(hybrid_spread_capture['resting_book_filled_notional_usd'], '13801')
+            self.assertIn('pure-book leg only', hybrid_spread_capture['notes'].lower())
+
+            spread_capture_side_rows = self._read_csv(result.spread_capture_comparison_by_side_path)
+            self.assertEqual(
+                {(row['segment'], row['lane']): row['gross_spread_capture_usd'] for row in spread_capture_side_rows},
+                {
+                    ('buy', '3a_pure_book'): '49',
+                    ('buy', '3b_hybrid'): '49',
+                    ('sell', '3a_pure_book'): '-2',
+                    ('sell', '3b_hybrid'): '-2',
+                },
+            )
+
+            spread_capture_bucket_rows = self._read_csv(result.spread_capture_comparison_by_bucket_path)
+            self.assertEqual(
+                {(row['segment'], row['lane']): row['gross_spread_capture_usd'] for row in spread_capture_bucket_rows},
+                {
+                    ('<1k', '3a_pure_book'): '-1',
+                    ('<1k', '3b_hybrid'): '-1',
+                    ('1k-5k', '3a_pure_book'): '-2',
+                    ('1k-5k', '3b_hybrid'): '-2',
+                    ('25k+', '3a_pure_book'): '50',
+                    ('25k+', '3b_hybrid'): '50',
+                },
+            )
+
             fee_scenario_rows = self._read_csv(result.fee_scenario_comparison_path)
             self.assertEqual(
                 {(row['lane'], row['scenario_id']) for row in fee_scenario_rows},
@@ -208,7 +254,103 @@ class ReportingPackTests(unittest.TestCase):
                 ['true', 'true', 'true'],
             )
             self.assertIn('## Fee-inclusive economics', result.final_comparison_path.read_text(encoding='utf-8'))
+            self.assertIn('## Gross spread capture proxy', result.final_comparison_path.read_text(encoding='utf-8'))
+            self.assertIn('pure-book leg of 3B', result.final_comparison_path.read_text(encoding='utf-8'))
             self.assertIn('## xSAUCE fee scenario sensitivity', result.final_comparison_path.read_text(encoding='utf-8'))
+
+            self.assertEqual(
+                validation['spread_capture_lane_rollups']['3b_hybrid']['aggregate']['gross_spread_capture_total'],
+                47.0,
+            )
+
+    def test_spread_capture_observation_uses_hybrid_pure_book_leg_only(self) -> None:
+        fee_policy = load_fee_policy(Path('config/fees.yaml'))
+        row = self._lane_row(
+            lane='3b_hybrid',
+            replay_unit_id='swap:hybrid:trade:1',
+            timestamp='2024-01-01T00:00:00Z',
+            side='buy',
+            requested_size='25000',
+            requested_notional='25000',
+            filled_size='25000',
+            filled_notional='15600',
+            completion_ratio='1',
+            reference_price='0.625',
+            avg_execution_price='0.624',
+            slippage_field='execution_slippage_bps',
+            slippage_value='15',
+            fee_covered='true',
+            remainder_size='0',
+            admissibility_passed='true',
+            trade_row_id='1',
+            swap_event_id='1',
+            trade_timestamp_seconds='1704067200',
+            source_ordering_key='1704067200:1:1',
+            base_volume_raw='25000000000',
+            target_volume_raw='2500000000000',
+            fee_fields=build_hybrid_fee_fields(
+                fee_policy,
+                requested_notional=25000.0,
+                pure_book_filled_size=20000.0,
+                pure_book_filled_notional=12550.0,
+                v2_backstop_filled_size=5000.0,
+                v2_backstop_execution_price=0.61,
+            ),
+        )
+
+        observation = spread_capture_observation_from_row(row)
+
+        self.assertEqual(observation.resting_book_filled_size, 20000.0)
+        self.assertEqual(observation.resting_book_filled_notional_usd, 12550.0)
+        self.assertEqual(
+            observation.gross_spread_capture_usd,
+            gross_spread_capture_usd(
+                side='buy',
+                reference_price=0.625,
+                filled_size=20000.0,
+                filled_notional=12550.0,
+            ),
+        )
+        self.assertNotEqual(
+            observation.gross_spread_capture_usd,
+            gross_spread_capture_usd(
+                side='buy',
+                reference_price=0.625,
+                filled_size=25000.0,
+                filled_notional=15600.0,
+            ),
+        )
+
+    def test_spread_capture_observation_rejects_mixed_hybrid_row_without_pure_book_notional(self) -> None:
+        row = self._lane_row(
+            lane='3b_hybrid',
+            replay_unit_id='swap:hybrid:trade:missing-breakdown',
+            timestamp='2024-01-01T00:00:00Z',
+            side='buy',
+            requested_size='25000',
+            requested_notional='25000',
+            filled_size='25000',
+            filled_notional='15600',
+            completion_ratio='1',
+            reference_price='0.625',
+            avg_execution_price='0.624',
+            slippage_field='execution_slippage_bps',
+            slippage_value='15',
+            fee_covered='true',
+            remainder_size='0',
+            admissibility_passed='true',
+            trade_row_id='2',
+            swap_event_id='2',
+            trade_timestamp_seconds='1704067201',
+            source_ordering_key='1704067201:1:1',
+            base_volume_raw='25000000000',
+            target_volume_raw='2500000000000',
+            fee_fields={},
+        )
+        row['route_breakdown'] = json.dumps({'pure_book': 20000.0, 'v2_backstop': 5000.0}, sort_keys=True)
+
+        with self.assertRaisesRegex(ValueError, r'fee_route_breakdown\.pure_book'):
+            spread_capture_observation_from_row(row)
 
     def test_reporting_pack_merges_comparable_benchmark_metrics_when_present(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

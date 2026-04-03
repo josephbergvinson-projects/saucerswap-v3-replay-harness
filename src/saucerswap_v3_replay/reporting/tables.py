@@ -7,6 +7,7 @@ from ..benchmarks.lambdaplex import PublishedBenchmarkStatus
 from ..metrics.summaries import RollupSummary
 from ..normalize.events import format_decimal, format_scaled_int
 from .fee_views import FeeRollupSummary
+from .spread_capture_views import SpreadCaptureRollupSummary
 
 AGGREGATE_FIELDNAMES = [
     'lane',
@@ -145,6 +146,36 @@ FEE_SCENARIO_FIELDNAMES = [
     'notes',
 ]
 
+SPREAD_CAPTURE_AGGREGATE_FIELDNAMES = [
+    'lane',
+    'lane_label',
+    'row_count',
+    'resting_book_fill_rows',
+    'zero_resting_book_fill_rows',
+    'requested_notional_usdc',
+    'resting_book_filled_size_hbar',
+    'resting_book_filled_notional_usd',
+    'gross_spread_capture_usd',
+    'gross_spread_capture_bps_on_requested_notional',
+    'gross_spread_capture_bps_on_resting_book_filled_notional',
+    'notes',
+]
+
+SPREAD_CAPTURE_SEGMENT_FIELDNAMES = [
+    'segment',
+    'lane',
+    'lane_label',
+    'row_count',
+    'resting_book_fill_rows',
+    'zero_resting_book_fill_rows',
+    'requested_notional_usdc',
+    'resting_book_filled_size_hbar',
+    'resting_book_filled_notional_usd',
+    'gross_spread_capture_usd',
+    'gross_spread_capture_bps_on_requested_notional',
+    'gross_spread_capture_bps_on_resting_book_filled_notional',
+]
+
 
 def build_aggregate_rows(
     *,
@@ -266,6 +297,49 @@ def build_fee_scenario_rows(
     return rows
 
 
+def build_spread_capture_aggregate_rows(
+    *,
+    lane_order: list[str],
+    lane_labels: dict[str, str],
+    lane_spread_capture_rollups: dict[str, SpreadCaptureRollupSummary],
+    lane_notes: dict[str, str],
+) -> list[dict[str, str]]:
+    return [
+        build_spread_capture_rollup_row(
+            lane=lane,
+            lane_label=lane_labels[lane],
+            rollup=lane_spread_capture_rollups[lane],
+            notes=lane_notes.get(lane, ''),
+        )
+        for lane in lane_order
+        if lane in lane_spread_capture_rollups
+    ]
+
+
+def build_spread_capture_segment_rows(
+    *,
+    segment_order: list[str],
+    lane_order: list[str],
+    lane_labels: dict[str, str],
+    lane_segment_rollups: dict[str, dict[str, SpreadCaptureRollupSummary]],
+) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for segment in segment_order:
+        for lane in lane_order:
+            rollup = lane_segment_rollups.get(lane, {}).get(segment)
+            if rollup is None:
+                continue
+            rows.append(
+                {
+                    'segment': segment,
+                    'lane': lane,
+                    'lane_label': lane_labels[lane],
+                    **spread_capture_rollup_metrics(rollup),
+                }
+            )
+    return rows
+
+
 def build_rollup_row(
     *,
     lane: str,
@@ -301,6 +375,21 @@ def build_fee_rollup_row(
         'lane_label': lane_label,
         **fee_rollup_metrics(rollup),
         'fee_precision': fee_precision,
+        'notes': notes,
+    }
+
+
+def build_spread_capture_rollup_row(
+    *,
+    lane: str,
+    lane_label: str,
+    rollup: SpreadCaptureRollupSummary,
+    notes: str,
+) -> dict[str, str]:
+    return {
+        'lane': lane,
+        'lane_label': lane_label,
+        **spread_capture_rollup_metrics(rollup),
         'notes': notes,
     }
 
@@ -457,10 +546,29 @@ def fee_rollup_metrics(rollup: FeeRollupSummary) -> dict[str, str]:
     }
 
 
+def spread_capture_rollup_metrics(rollup: SpreadCaptureRollupSummary) -> dict[str, str]:
+    return {
+        'row_count': str(rollup.row_count),
+        'resting_book_fill_rows': str(rollup.resting_book_fill_rows),
+        'zero_resting_book_fill_rows': str(rollup.zero_resting_book_fill_rows),
+        'requested_notional_usdc': format_scaled_int(rollup.requested_notional_raw_total, 6),
+        'resting_book_filled_size_hbar': format_decimal(rollup.resting_book_filled_size_total),
+        'resting_book_filled_notional_usd': format_decimal(rollup.resting_book_filled_notional_total),
+        'gross_spread_capture_usd': format_decimal(rollup.gross_spread_capture_total),
+        'gross_spread_capture_bps_on_requested_notional': format_decimal(
+            rollup.gross_spread_capture_bps_on_requested_notional
+        ),
+        'gross_spread_capture_bps_on_resting_book_filled_notional': format_decimal(
+            rollup.gross_spread_capture_bps_on_resting_book_filled_notional
+        ),
+    }
+
+
 def render_final_comparison_report(
     *,
     aggregate_rows: list[dict[str, str]],
     fee_aggregate_rows: list[dict[str, str]],
+    spread_capture_aggregate_rows: list[dict[str, str]],
     side_rows: list[dict[str, str]],
     fee_side_rows: list[dict[str, str]],
     bucket_rows: list[dict[str, str]],
@@ -515,6 +623,25 @@ def render_final_comparison_report(
                     ('Notes', 'notes'),
                 ],
             ),
+            '',
+            '## Gross spread capture proxy',
+            '',
+            'Filled resting-book leg only for 3A and the pure-book leg of 3B. This is a study-reference spread-capture proxy, not full maker PnL, not explicit LP fee accrual, and not V3 maker rebate.',
+            '',
+            render_markdown_table(
+                spread_capture_aggregate_rows,
+                [
+                    ('Lane', 'lane_label'),
+                    ('Rows', 'row_count'),
+                    ('Book-leg fill rows', 'resting_book_fill_rows'),
+                    ('Book-leg filled notional (USD)', 'resting_book_filled_notional_usd'),
+                    ('Gross spread capture (USD)', 'gross_spread_capture_usd'),
+                    ('Gross spread capture (bps, book leg)', 'gross_spread_capture_bps_on_resting_book_filled_notional'),
+                    ('Notes', 'notes'),
+                ],
+            ),
+            '',
+            'Exact figures require materialized `data/processed/lane_3a_pure_book.csv` and `data/processed/lane_3b_hybrid.csv`. If those row-level outputs are absent in the mounted checkout, rerun `PYTHONPATH=src python3 -m saucerswap_v3_replay.cli pure-book --root .`, `PYTHONPATH=src python3 -m saucerswap_v3_replay.cli hybrid --root .`, and `PYTHONPATH=src python3 -m saucerswap_v3_replay.cli reporting-pack --root .`.',
             '',
             '## Side split',
             '',
