@@ -118,6 +118,13 @@ def cmd_reporting_pack(args: argparse.Namespace) -> int:
         'comparison_aggregate_path': str(result.comparison_aggregate_path.relative_to(root)),
         'comparison_by_bucket_path': str(result.comparison_by_bucket_path.relative_to(root)),
         'comparison_by_side_path': str(result.comparison_by_side_path.relative_to(root)),
+        'provider_econ_comparison_aggregate_path': str(
+            result.provider_econ_comparison_aggregate_path.relative_to(root)
+        ),
+        'provider_econ_comparison_by_bucket_path': str(
+            result.provider_econ_comparison_by_bucket_path.relative_to(root)
+        ),
+        'provider_econ_comparison_by_side_path': str(result.provider_econ_comparison_by_side_path.relative_to(root)),
         'final_comparison_path': str(result.final_comparison_path.relative_to(root)),
         'reconciliation_path': str(result.reconciliation_path.relative_to(root)),
         'validation_path': str(result.validation_path.relative_to(root)),

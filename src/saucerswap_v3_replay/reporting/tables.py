@@ -7,6 +7,7 @@ from ..benchmarks.lambdaplex import PublishedBenchmarkStatus
 from ..metrics.summaries import RollupSummary
 from ..normalize.events import format_decimal, format_scaled_int
 from .fee_views import FeeRollupSummary
+from .provider_economics_views import ProviderEconomicsRollupSummary
 from .spread_capture_views import SpreadCaptureRollupSummary
 
 AGGREGATE_FIELDNAMES = [
@@ -176,6 +177,74 @@ SPREAD_CAPTURE_SEGMENT_FIELDNAMES = [
     'gross_spread_capture_bps_on_resting_book_filled_notional',
 ]
 
+PROVIDER_ECON_AGGREGATE_FIELDNAMES = [
+    'lane',
+    'lane_label',
+    'row_count',
+    'next_event_horizon_supported_rows',
+    'next_event_horizon_unavailable_rows',
+    'requested_notional_usdc',
+    'resting_book_filled_notional_usd',
+    'explicit_protocol_transfer_usd',
+    'explicit_protocol_transfer_bps_on_requested_notional',
+    'gross_provider_revenue_proxy_usd',
+    'gross_provider_revenue_proxy_bps_on_requested_notional',
+    'net_provider_economics_proxy_usd',
+    'net_provider_economics_proxy_bps_on_requested_notional',
+    'lp_fee_accrual_usd',
+    'lp_fee_accrual_bps_on_requested_notional',
+    'lp_divergence_loss_proxy_usd',
+    'lp_divergence_loss_proxy_bps_on_requested_notional',
+    'lp_net_provider_economics_proxy_usd',
+    'lp_net_provider_economics_proxy_bps_on_requested_notional',
+    'maker_rebate_usd',
+    'maker_rebate_bps_on_requested_notional',
+    'gross_spread_capture_usd',
+    'gross_spread_capture_bps_on_requested_notional',
+    'gross_spread_capture_bps_on_resting_book_filled_notional',
+    'maker_markout_loss_proxy_usd',
+    'maker_markout_loss_proxy_bps_on_requested_notional',
+    'maker_markout_loss_proxy_bps_on_resting_book_filled_notional',
+    'maker_net_provider_economics_proxy_usd',
+    'maker_net_provider_economics_proxy_bps_on_requested_notional',
+    'maker_net_provider_economics_proxy_bps_on_resting_book_filled_notional',
+    'notes',
+]
+
+PROVIDER_ECON_SEGMENT_FIELDNAMES = [
+    'segment',
+    'lane',
+    'lane_label',
+    'row_count',
+    'next_event_horizon_supported_rows',
+    'next_event_horizon_unavailable_rows',
+    'requested_notional_usdc',
+    'resting_book_filled_notional_usd',
+    'explicit_protocol_transfer_usd',
+    'explicit_protocol_transfer_bps_on_requested_notional',
+    'gross_provider_revenue_proxy_usd',
+    'gross_provider_revenue_proxy_bps_on_requested_notional',
+    'net_provider_economics_proxy_usd',
+    'net_provider_economics_proxy_bps_on_requested_notional',
+    'lp_fee_accrual_usd',
+    'lp_fee_accrual_bps_on_requested_notional',
+    'lp_divergence_loss_proxy_usd',
+    'lp_divergence_loss_proxy_bps_on_requested_notional',
+    'lp_net_provider_economics_proxy_usd',
+    'lp_net_provider_economics_proxy_bps_on_requested_notional',
+    'maker_rebate_usd',
+    'maker_rebate_bps_on_requested_notional',
+    'gross_spread_capture_usd',
+    'gross_spread_capture_bps_on_requested_notional',
+    'gross_spread_capture_bps_on_resting_book_filled_notional',
+    'maker_markout_loss_proxy_usd',
+    'maker_markout_loss_proxy_bps_on_requested_notional',
+    'maker_markout_loss_proxy_bps_on_resting_book_filled_notional',
+    'maker_net_provider_economics_proxy_usd',
+    'maker_net_provider_economics_proxy_bps_on_requested_notional',
+    'maker_net_provider_economics_proxy_bps_on_resting_book_filled_notional',
+]
+
 
 def build_aggregate_rows(
     *,
@@ -340,6 +409,49 @@ def build_spread_capture_segment_rows(
     return rows
 
 
+def build_provider_econ_aggregate_rows(
+    *,
+    lane_order: list[str],
+    lane_labels: dict[str, str],
+    lane_provider_econ_rollups: dict[str, ProviderEconomicsRollupSummary],
+    lane_notes: dict[str, str],
+) -> list[dict[str, str]]:
+    return [
+        build_provider_econ_rollup_row(
+            lane=lane,
+            lane_label=lane_labels[lane],
+            rollup=lane_provider_econ_rollups[lane],
+            notes=lane_notes.get(lane, ''),
+        )
+        for lane in lane_order
+        if lane in lane_provider_econ_rollups
+    ]
+
+
+def build_provider_econ_segment_rows(
+    *,
+    segment_order: list[str],
+    lane_order: list[str],
+    lane_labels: dict[str, str],
+    lane_segment_rollups: dict[str, dict[str, ProviderEconomicsRollupSummary]],
+) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for segment in segment_order:
+        for lane in lane_order:
+            rollup = lane_segment_rollups.get(lane, {}).get(segment)
+            if rollup is None:
+                continue
+            rows.append(
+                {
+                    'segment': segment,
+                    'lane': lane,
+                    'lane_label': lane_labels[lane],
+                    **provider_econ_rollup_metrics(rollup),
+                }
+            )
+    return rows
+
+
 def build_rollup_row(
     *,
     lane: str,
@@ -390,6 +502,21 @@ def build_spread_capture_rollup_row(
         'lane': lane,
         'lane_label': lane_label,
         **spread_capture_rollup_metrics(rollup),
+        'notes': notes,
+    }
+
+
+def build_provider_econ_rollup_row(
+    *,
+    lane: str,
+    lane_label: str,
+    rollup: ProviderEconomicsRollupSummary,
+    notes: str,
+) -> dict[str, str]:
+    return {
+        'lane': lane,
+        'lane_label': lane_label,
+        **provider_econ_rollup_metrics(rollup),
         'notes': notes,
     }
 
@@ -564,15 +691,73 @@ def spread_capture_rollup_metrics(rollup: SpreadCaptureRollupSummary) -> dict[st
     }
 
 
+def provider_econ_rollup_metrics(rollup: ProviderEconomicsRollupSummary) -> dict[str, str]:
+    return {
+        'row_count': str(rollup.row_count),
+        'next_event_horizon_supported_rows': str(rollup.next_event_horizon_supported_rows),
+        'next_event_horizon_unavailable_rows': str(rollup.next_event_horizon_unavailable_rows),
+        'requested_notional_usdc': format_scaled_int(rollup.requested_notional_raw_total, 6),
+        'resting_book_filled_notional_usd': format_decimal(rollup.resting_book_filled_notional_total),
+        'explicit_protocol_transfer_usd': format_decimal(rollup.explicit_protocol_transfer_total),
+        'explicit_protocol_transfer_bps_on_requested_notional': format_decimal(
+            rollup.explicit_protocol_transfer_bps_on_requested_notional
+        ),
+        'gross_provider_revenue_proxy_usd': format_decimal(rollup.gross_provider_revenue_proxy_total),
+        'gross_provider_revenue_proxy_bps_on_requested_notional': format_decimal(
+            rollup.gross_provider_revenue_proxy_bps_on_requested_notional
+        ),
+        'net_provider_economics_proxy_usd': format_decimal(rollup.net_provider_economics_proxy_total),
+        'net_provider_economics_proxy_bps_on_requested_notional': format_decimal(
+            rollup.net_provider_economics_proxy_bps_on_requested_notional
+        ),
+        'lp_fee_accrual_usd': format_decimal(rollup.lp_fee_accrual_total),
+        'lp_fee_accrual_bps_on_requested_notional': format_decimal(rollup.lp_fee_accrual_bps_on_requested_notional),
+        'lp_divergence_loss_proxy_usd': format_decimal(rollup.lp_divergence_loss_proxy_total),
+        'lp_divergence_loss_proxy_bps_on_requested_notional': format_decimal(
+            rollup.lp_divergence_loss_proxy_bps_on_requested_notional
+        ),
+        'lp_net_provider_economics_proxy_usd': format_decimal(rollup.lp_net_provider_economics_proxy_total),
+        'lp_net_provider_economics_proxy_bps_on_requested_notional': format_decimal(
+            rollup.lp_net_provider_economics_proxy_bps_on_requested_notional
+        ),
+        'maker_rebate_usd': format_decimal(rollup.maker_rebate_total),
+        'maker_rebate_bps_on_requested_notional': format_decimal(rollup.maker_rebate_bps_on_requested_notional),
+        'gross_spread_capture_usd': format_decimal(rollup.gross_spread_capture_total),
+        'gross_spread_capture_bps_on_requested_notional': format_decimal(
+            rollup.gross_spread_capture_bps_on_requested_notional
+        ),
+        'gross_spread_capture_bps_on_resting_book_filled_notional': format_decimal(
+            rollup.gross_spread_capture_bps_on_resting_book_filled_notional
+        ),
+        'maker_markout_loss_proxy_usd': format_decimal(rollup.maker_markout_loss_proxy_total),
+        'maker_markout_loss_proxy_bps_on_requested_notional': format_decimal(
+            rollup.maker_markout_loss_proxy_bps_on_requested_notional
+        ),
+        'maker_markout_loss_proxy_bps_on_resting_book_filled_notional': format_decimal(
+            rollup.maker_markout_loss_proxy_bps_on_resting_book_filled_notional
+        ),
+        'maker_net_provider_economics_proxy_usd': format_decimal(rollup.maker_net_provider_economics_proxy_total),
+        'maker_net_provider_economics_proxy_bps_on_requested_notional': format_decimal(
+            rollup.maker_net_provider_economics_proxy_bps_on_requested_notional
+        ),
+        'maker_net_provider_economics_proxy_bps_on_resting_book_filled_notional': format_decimal(
+            rollup.maker_net_provider_economics_proxy_bps_on_resting_book_filled_notional
+        ),
+    }
+
+
 def render_final_comparison_report(
     *,
     aggregate_rows: list[dict[str, str]],
     fee_aggregate_rows: list[dict[str, str]],
     spread_capture_aggregate_rows: list[dict[str, str]],
+    provider_econ_aggregate_rows: list[dict[str, str]],
     side_rows: list[dict[str, str]],
     fee_side_rows: list[dict[str, str]],
+    provider_econ_side_rows: list[dict[str, str]],
     bucket_rows: list[dict[str, str]],
     fee_bucket_rows: list[dict[str, str]],
+    provider_econ_bucket_rows: list[dict[str, str]],
     fee_scenario_rows: list[dict[str, str]],
     benchmark_status: PublishedBenchmarkStatus,
     caveats: list[str],
@@ -643,6 +828,56 @@ def render_final_comparison_report(
             '',
             'Exact figures require materialized `data/processed/lane_3a_pure_book.csv` and `data/processed/lane_3b_hybrid.csv`. If those row-level outputs are absent in the mounted checkout, rerun `PYTHONPATH=src python3 -m saucerswap_v3_replay.cli pure-book --root .`, `PYTHONPATH=src python3 -m saucerswap_v3_replay.cli hybrid --root .`, and `PYTHONPATH=src python3 -m saucerswap_v3_replay.cli reporting-pack --root .`.',
             '',
+            '## Symmetric provider-economics comparison',
+            '',
+            'The symmetric provider-economics layer uses the next row in each lane file as the canonical next-event reference. Favorable moves clip to zero; the loss proxies are adverse-only and do not claim full LP ROI or full maker inventory PnL.',
+            '',
+            '### Explicit protocol transfer layer',
+            '',
+            render_markdown_table(
+                provider_econ_aggregate_rows,
+                [
+                    ('Lane', 'lane_label'),
+                    ('Horizon rows', 'next_event_horizon_supported_rows'),
+                    ('Unavailable', 'next_event_horizon_unavailable_rows'),
+                    ('LP fee accrual (USD)', 'lp_fee_accrual_usd'),
+                    ('Maker rebate (USD)', 'maker_rebate_usd'),
+                    ('Explicit transfer (USD)', 'explicit_protocol_transfer_usd'),
+                    ('Explicit transfer (bps, requested)', 'explicit_protocol_transfer_bps_on_requested_notional'),
+                    ('Notes', 'notes'),
+                ],
+            ),
+            '',
+            '### Gross provider revenue proxy layer',
+            '',
+            render_markdown_table(
+                provider_econ_aggregate_rows,
+                [
+                    ('Lane', 'lane_label'),
+                    ('LP fee accrual (USD)', 'lp_fee_accrual_usd'),
+                    ('Maker rebate (USD)', 'maker_rebate_usd'),
+                    ('Gross spread capture (USD)', 'gross_spread_capture_usd'),
+                    ('Gross provider revenue (USD)', 'gross_provider_revenue_proxy_usd'),
+                    ('Gross provider revenue (bps, requested)', 'gross_provider_revenue_proxy_bps_on_requested_notional'),
+                    ('Notes', 'notes'),
+                ],
+            ),
+            '',
+            '### Net provider-economics proxy layer',
+            '',
+            render_markdown_table(
+                provider_econ_aggregate_rows,
+                [
+                    ('Lane', 'lane_label'),
+                    ('LP divergence/LVR proxy (USD)', 'lp_divergence_loss_proxy_usd'),
+                    ('Maker markout proxy (USD)', 'maker_markout_loss_proxy_usd'),
+                    ('Net provider economics (USD)', 'net_provider_economics_proxy_usd'),
+                    ('Net provider economics (bps, requested)', 'net_provider_economics_proxy_bps_on_requested_notional'),
+                    ('Maker net (bps, book leg)', 'maker_net_provider_economics_proxy_bps_on_resting_book_filled_notional'),
+                    ('Notes', 'notes'),
+                ],
+            ),
+            '',
             '## Side split',
             '',
             render_markdown_table(
@@ -669,6 +904,21 @@ def render_final_comparison_report(
                     ('Liquidity-side earnings (USD)', 'liquidity_side_fee_earned_usd'),
                     ('Protocol earnings (USD)', 'protocol_fee_earned_usd'),
                     ('All-in cost (bps, requested)', 'all_in_trader_cost_bps_on_requested_notional'),
+                ],
+            ),
+            '',
+            '## Provider-economics side split',
+            '',
+            render_markdown_table(
+                provider_econ_side_rows,
+                [
+                    ('Side', 'segment'),
+                    ('Lane', 'lane_label'),
+                    ('Horizon rows', 'next_event_horizon_supported_rows'),
+                    ('Explicit transfer (USD)', 'explicit_protocol_transfer_usd'),
+                    ('Gross provider revenue (USD)', 'gross_provider_revenue_proxy_usd'),
+                    ('Net provider economics (USD)', 'net_provider_economics_proxy_usd'),
+                    ('Net provider economics (bps, requested)', 'net_provider_economics_proxy_bps_on_requested_notional'),
                 ],
             ),
             '',
@@ -699,6 +949,21 @@ def render_final_comparison_report(
                     ('Liquidity-side earnings (USD)', 'liquidity_side_fee_earned_usd'),
                     ('Protocol earnings (USD)', 'protocol_fee_earned_usd'),
                     ('All-in cost (bps, requested)', 'all_in_trader_cost_bps_on_requested_notional'),
+                ],
+            ),
+            '',
+            '## Provider-economics bucket split',
+            '',
+            render_markdown_table(
+                provider_econ_bucket_rows,
+                [
+                    ('Bucket', 'segment'),
+                    ('Lane', 'lane_label'),
+                    ('Horizon rows', 'next_event_horizon_supported_rows'),
+                    ('Requested notional (USDC)', 'requested_notional_usdc'),
+                    ('Gross provider revenue (USD)', 'gross_provider_revenue_proxy_usd'),
+                    ('Net provider economics (USD)', 'net_provider_economics_proxy_usd'),
+                    ('Net provider economics (bps, requested)', 'net_provider_economics_proxy_bps_on_requested_notional'),
                 ],
             ),
             '',
@@ -779,6 +1044,7 @@ def render_reconciliation_report(
 def render_validation_report(
     *,
     validation_rows: list[dict[str, str]],
+    provider_econ_aggregate_rows: list[dict[str, str]],
     global_checks: list[str],
 ) -> str:
     lines = [
@@ -797,6 +1063,20 @@ def render_validation_report(
                 ('Fee coverage', 'fee_coverage_match'),
                 ('Fee rollup', 'default_fee_rollup_match'),
                 ('Status', 'status'),
+            ],
+        ),
+        '',
+        '## Provider-economics horizon checks',
+        '',
+        render_markdown_table(
+            provider_econ_aggregate_rows,
+            [
+                ('Lane', 'lane_label'),
+                ('Rows', 'row_count'),
+                ('Supported rows', 'next_event_horizon_supported_rows'),
+                ('Unavailable rows', 'next_event_horizon_unavailable_rows'),
+                ('Net provider economics (USD)', 'net_provider_economics_proxy_usd'),
+                ('Notes', 'notes'),
             ],
         ),
         '',

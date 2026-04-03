@@ -108,6 +108,9 @@ class ReportingPackTests(unittest.TestCase):
                 'spread_capture_aggregate': first.spread_capture_comparison_aggregate_path.read_text(encoding='utf-8'),
                 'spread_capture_bucket': first.spread_capture_comparison_by_bucket_path.read_text(encoding='utf-8'),
                 'spread_capture_side': first.spread_capture_comparison_by_side_path.read_text(encoding='utf-8'),
+                'provider_econ_aggregate': first.provider_econ_comparison_aggregate_path.read_text(encoding='utf-8'),
+                'provider_econ_bucket': first.provider_econ_comparison_by_bucket_path.read_text(encoding='utf-8'),
+                'provider_econ_side': first.provider_econ_comparison_by_side_path.read_text(encoding='utf-8'),
                 'final_report': first.final_comparison_path.read_text(encoding='utf-8'),
                 'reconciliation': first.reconciliation_path.read_text(encoding='utf-8'),
                 'validation': first.validation_path.read_text(encoding='utf-8'),
@@ -125,6 +128,9 @@ class ReportingPackTests(unittest.TestCase):
                 'spread_capture_aggregate': second.spread_capture_comparison_aggregate_path.read_text(encoding='utf-8'),
                 'spread_capture_bucket': second.spread_capture_comparison_by_bucket_path.read_text(encoding='utf-8'),
                 'spread_capture_side': second.spread_capture_comparison_by_side_path.read_text(encoding='utf-8'),
+                'provider_econ_aggregate': second.provider_econ_comparison_aggregate_path.read_text(encoding='utf-8'),
+                'provider_econ_bucket': second.provider_econ_comparison_by_bucket_path.read_text(encoding='utf-8'),
+                'provider_econ_side': second.provider_econ_comparison_by_side_path.read_text(encoding='utf-8'),
                 'final_report': second.final_comparison_path.read_text(encoding='utf-8'),
                 'reconciliation': second.reconciliation_path.read_text(encoding='utf-8'),
                 'validation': second.validation_path.read_text(encoding='utf-8'),
@@ -214,6 +220,58 @@ class ReportingPackTests(unittest.TestCase):
                 },
             )
 
+            provider_econ_rows = self._read_csv(result.provider_econ_comparison_aggregate_path)
+            self.assertEqual(
+                [row['lane'] for row in provider_econ_rows],
+                ['v2_realized', '3a_pure_book', '3b_hybrid'],
+            )
+            provider_v2 = next(row for row in provider_econ_rows if row['lane'] == 'v2_realized')
+            provider_3a = next(row for row in provider_econ_rows if row['lane'] == '3a_pure_book')
+            provider_3b = next(row for row in provider_econ_rows if row['lane'] == '3b_hybrid')
+            self.assertEqual(provider_v2['next_event_horizon_supported_rows'], '2')
+            self.assertEqual(provider_v2['next_event_horizon_unavailable_rows'], '1')
+            self.assertEqual(provider_3a['next_event_horizon_supported_rows'], '2')
+            self.assertEqual(provider_3b['next_event_horizon_supported_rows'], '2')
+            self.assertEqual(provider_v2['lp_fee_accrual_usd'], fee_aggregate_rows[0]['active_lp_fee_earned_usd'])
+            self.assertEqual(provider_3a['maker_rebate_usd'], fee_aggregate_rows[1]['maker_rebate_earned_usd'])
+            self.assertEqual(provider_3b['maker_rebate_usd'], fee_aggregate_rows[2]['maker_rebate_earned_usd'])
+            self.assertEqual(provider_3a['gross_spread_capture_usd'], pure_book_spread_capture['gross_spread_capture_usd'])
+            self.assertEqual(provider_3b['gross_spread_capture_usd'], hybrid_spread_capture['gross_spread_capture_usd'])
+            self.assertEqual(provider_3a['maker_markout_loss_proxy_usd'], '0')
+            self.assertEqual(provider_3b['maker_markout_loss_proxy_usd'], '0')
+            self.assertEqual(provider_3a['net_provider_economics_proxy_usd'], provider_3a['gross_provider_revenue_proxy_usd'])
+            self.assertEqual(provider_3b['net_provider_economics_proxy_usd'], provider_3b['gross_provider_revenue_proxy_usd'])
+            self.assertIn('divergence/LVR-style loss proxy', provider_v2['notes'])
+
+            provider_econ_side_rows = self._read_csv(result.provider_econ_comparison_by_side_path)
+            self.assertEqual(
+                {(row['segment'], row['lane']): row['next_event_horizon_supported_rows'] for row in provider_econ_side_rows},
+                {
+                    ('buy', 'v2_realized'): '1',
+                    ('buy', '3a_pure_book'): '1',
+                    ('buy', '3b_hybrid'): '1',
+                    ('sell', 'v2_realized'): '1',
+                    ('sell', '3a_pure_book'): '1',
+                    ('sell', '3b_hybrid'): '1',
+                },
+            )
+
+            provider_econ_bucket_rows = self._read_csv(result.provider_econ_comparison_by_bucket_path)
+            self.assertEqual(
+                {(row['segment'], row['lane']): row['next_event_horizon_supported_rows'] for row in provider_econ_bucket_rows},
+                {
+                    ('<1k', 'v2_realized'): '1',
+                    ('<1k', '3a_pure_book'): '1',
+                    ('<1k', '3b_hybrid'): '1',
+                    ('1k-5k', 'v2_realized'): '1',
+                    ('1k-5k', '3a_pure_book'): '1',
+                    ('1k-5k', '3b_hybrid'): '1',
+                    ('25k+', 'v2_realized'): '0',
+                    ('25k+', '3a_pure_book'): '0',
+                    ('25k+', '3b_hybrid'): '0',
+                },
+            )
+
             fee_scenario_rows = self._read_csv(result.fee_scenario_comparison_path)
             self.assertEqual(
                 {(row['lane'], row['scenario_id']) for row in fee_scenario_rows},
@@ -253,14 +311,27 @@ class ReportingPackTests(unittest.TestCase):
                 [row['default_fee_rollup_match'] for row in validation['validation']['lanes']],
                 ['true', 'true', 'true'],
             )
-            self.assertIn('## Fee-inclusive economics', result.final_comparison_path.read_text(encoding='utf-8'))
-            self.assertIn('## Gross spread capture proxy', result.final_comparison_path.read_text(encoding='utf-8'))
-            self.assertIn('pure-book leg of 3B', result.final_comparison_path.read_text(encoding='utf-8'))
-            self.assertIn('## xSAUCE fee scenario sensitivity', result.final_comparison_path.read_text(encoding='utf-8'))
+            final_report = result.final_comparison_path.read_text(encoding='utf-8')
+            self.assertIn('## Fee-inclusive economics', final_report)
+            self.assertIn('## Gross spread capture proxy', final_report)
+            self.assertIn('## Symmetric provider-economics comparison', final_report)
+            self.assertIn('### Net provider-economics proxy layer', final_report)
+            self.assertIn('## Provider-economics side split', final_report)
+            self.assertIn('## Provider-economics bucket split', final_report)
+            self.assertIn('pure-book leg of 3B', final_report)
+            self.assertIn('## xSAUCE fee scenario sensitivity', final_report)
+
+            validation_report = result.validation_path.read_text(encoding='utf-8')
+            self.assertIn('## Provider-economics horizon checks', validation_report)
+            self.assertIn('next-event', validation_report.lower())
 
             self.assertEqual(
                 validation['spread_capture_lane_rollups']['3b_hybrid']['aggregate']['gross_spread_capture_total'],
                 47.0,
+            )
+            self.assertEqual(
+                validation['provider_econ_lane_rollups']['3b_hybrid']['aggregate']['next_event_horizon_supported_rows'],
+                2,
             )
 
     def test_spread_capture_observation_uses_hybrid_pure_book_leg_only(self) -> None:

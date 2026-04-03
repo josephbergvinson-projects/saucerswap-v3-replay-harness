@@ -6,6 +6,7 @@
 - The reporting path reuses mounted RH-03, RH-04, RH-05, and RH-06 artifacts as read-only inputs and does not rebuild those layers.
 - Fee outputs use the locked RH-20 contract: V2 applies the fixed WHBAR/USDC trader/LP/protocol split, 3A applies the locked V3 scenarios on pure-book filled notional, and 3B blends V3 pure-book fees with V2 residual-backstop fees when applicable.
 - Gross spread capture is reported separately as a resting-book proxy versus the study reference price on filled synthetic-book size. It is not full maker PnL, not explicit V2 LP fee accrual, and not V3 maker rebate.
+- Provider-economics outputs add a symmetric next-event proxy layer: V2 active-LP fee accrual minus adverse-only divergence/LVR-style loss versus gross spread capture plus maker rebate minus adverse-only maker markout for V3 book flow. This remains a proxy layer, not full LP ROI or full maker inventory PnL.
 - All-in trader cost is reported as execution shortfall on filled size plus explicit trader fees, with headline normalization on requested notional for completion-aware comparisons.
 - V2 liquidity-side fee output is aggregate active-LP fee accrual, not LP ROI; V3 liquidity-side fee output is maker rebate capture, not full maker PnL.
 - Canonical `avg_slippage_bps` remains the study-owned external-reference metric. `avg_amm_pre_trade_spot_gross_slippage_bps` is a separate Lambdaplex-parity proxy based on the RH-13 best-supported reconstructed AMM pre-trade pool spot plus a symmetric reference denominator.
@@ -38,6 +39,34 @@ Filled resting-book leg only for 3A and the pure-book leg of 3B. This is a study
 
 Exact figures require materialized `data/processed/lane_3a_pure_book.csv` and `data/processed/lane_3b_hybrid.csv`. If those row-level outputs are absent in the mounted checkout, rerun `PYTHONPATH=src python3 -m saucerswap_v3_replay.cli pure-book --root .`, `PYTHONPATH=src python3 -m saucerswap_v3_replay.cli hybrid --root .`, and `PYTHONPATH=src python3 -m saucerswap_v3_replay.cli reporting-pack --root .`.
 
+## Symmetric provider-economics comparison
+
+The symmetric provider-economics layer uses the next row in each lane file as the canonical next-event reference. Favorable moves clip to zero; the loss proxies are adverse-only and do not claim full LP ROI or full maker inventory PnL.
+
+### Explicit protocol transfer layer
+
+| Lane | Horizon rows | Unavailable | LP fee accrual (USD) | Maker rebate (USD) | Explicit transfer (USD) | Explicit transfer (bps, requested) | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| V2 baseline | 7255956 | 1 | 4910721.583980700001 | 0 | 4910721.583980700001 | 12.500000000002 | Active LP fee accrual minus adverse-only next-event divergence/LVR-style loss proxy on filled V2 size. |
+| 3A pure-book | 7255956 | 1 | 0 | 77023.041335480098 | 77023.041335480098 | 0.196058359292 | Gross spread capture plus maker rebate minus adverse-only next-event maker markout on filled resting-book size. |
+| 3B hybrid | 7255956 | 1 | 0 | 77023.041335479706 | 77023.041335479706 | 0.196058359292 | Pure-book leg only for spread, rebate, and markout. Excludes the V2 backstop leg and any residual V2 LP fee accrual. |
+
+### Gross provider revenue proxy layer
+
+| Lane | LP fee accrual (USD) | Maker rebate (USD) | Gross spread capture (USD) | Gross provider revenue (USD) | Gross provider revenue (bps, requested) | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| V2 baseline | 4910721.583980700001 | 0 | 0 | 4910721.583980700001 | 12.500000000002 | Active LP fee accrual minus adverse-only next-event divergence/LVR-style loss proxy on filled V2 size. |
+| 3A pure-book | 0 | 77023.041335480098 | 1821860.196653133724 | 1898883.237988613779 | 4.833513785895 | Gross spread capture plus maker rebate minus adverse-only next-event maker markout on filled resting-book size. |
+| 3B hybrid | 0 | 77023.041335479706 | 1821860.196653133724 | 1898883.237988613546 | 4.833513785895 | Pure-book leg only for spread, rebate, and markout. Excludes the V2 backstop leg and any residual V2 LP fee accrual. |
+
+### Net provider-economics proxy layer
+
+| Lane | LP divergence/LVR proxy (USD) | Maker markout proxy (USD) | Net provider economics (USD) | Net provider economics (bps, requested) | Maker net (bps, book leg) | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| V2 baseline | 910447.435884958599 | 0 | 4000274.148095092271 | 10.182500880179 | 0 | Active LP fee accrual minus adverse-only next-event divergence/LVR-style loss proxy on filled V2 size. |
+| 3A pure-book | 0 | 422049.771206624049 | 1476833.466783466283 | 3.759206873999 | 3.834783569116 | Gross spread capture plus maker rebate minus adverse-only next-event maker markout on filled resting-book size. |
+| 3B hybrid | 0 | 422049.771206624049 | 1476833.466783466516 | 3.759206873999 | 3.834783569116 | Pure-book leg only for spread, rebate, and markout. Excludes the V2 backstop leg and any residual V2 LP fee accrual. |
+
 ## Side split
 
 | Side | Lane | Rows | Fill rate | Avg completion | Avg study slippage (bps) | Avg parity proxy slippage (bps) |
@@ -59,6 +88,17 @@ Exact figures require materialized `data/processed/lane_3a_pure_book.csv` and `d
 | sell | V2 baseline | 2944846.968742064666 | 2454039.140618281439 | 490807.828123782412 | 40.007578293832 |
 | sell | 3A pure-book | 2311506.663819153327 | 38525.1110637116 | 2272981.552755231969 | 16.418939316604 |
 | sell | 3B hybrid | 2335174.946166247595 | 58248.679686032061 | 2276926.266479551792 | 16.818486515823 |
+
+## Provider-economics side split
+
+| Side | Lane | Horizon rows | Explicit transfer (USD) | Gross provider revenue (USD) | Net provider economics (USD) | Net provider economics (bps, requested) |
+| --- | --- | --- | --- | --- | --- | --- |
+| buy | V2 baseline | 3770998 | 2456682.443361248821 | 2456682.443361248821 | 1923747.703973239055 | 9.788341331882 |
+| buy | 3A pure-book | 3770998 | 38497.930271843332 | 948447.212315044366 | 736601.750429757754 | 3.74794955907 |
+| buy | 3B hybrid | 3770998 | 38497.930271843346 | 948447.212315044366 | 736601.750429757871 | 3.74794955907 |
+| sell | V2 baseline | 3484958 | 2454039.140618281439 | 2454039.140618281439 | 2076526.444121820386 | 10.577084986909 |
+| sell | 3A pure-book | 3484958 | 38525.1110637116 | 950436.025675554527 | 740231.716352928313 | 3.77047631444 |
+| sell | 3B hybrid | 3484958 | 38525.111063711287 | 950436.025675554294 | 740231.716352927964 | 3.77047631444 |
 
 ## Bucket split
 
@@ -99,6 +139,26 @@ Exact figures require materialized `data/processed/lane_3a_pure_book.csv` and `d
 | 25k+ | V2 baseline | 192217.226869051519 | 160181.022390876693 | 32036.20447817527 | 90.035594869025 |
 | 25k+ | 3A pure-book | 63360 | 1055.999999999966 | 62303.999999997352 | 20.227998515253 |
 | 25k+ | 3B hybrid | 111788.421068254072 | 41413.017556878433 | 70375.403511375509 | 31.95573797303 |
+
+## Provider-economics bucket split
+
+| Bucket | Lane | Horizon rows | Requested notional (USDC) | Gross provider revenue (USD) | Net provider economics (USD) | Net provider economics (bps, requested) |
+| --- | --- | --- | --- | --- | --- | --- |
+| <1k | V2 baseline | 6034242 | 1229219632.47347 | 1536524.54059203621 | 1298652.997714940924 | 10.564857275357 |
+| <1k | 3A pure-book | 6034242 | 1229219632.47347 | 270415.769394995878 | 221230.902585964126 | 1.799767077758 |
+| <1k | 3B hybrid | 6034242 | 1229219632.47347 | 270415.769394995586 | 221230.90258596401 | 1.799767077758 |
+| 1k-5k | V2 baseline | 1165114 | 2156022220.233877 | 2695027.775292416103 | 2266877.369486061856 | 10.514165151972 |
+| 1k-5k | 3A pure-book | 1165114 | 2156022220.233877 | 789870.32300784532 | 521557.908204544743 | 2.419074828218 |
+| 1k-5k | 3B hybrid | 1165114 | 2156022220.233877 | 789870.32300784532 | 521557.908204544743 | 2.419074828218 |
+| 5k-10k | V2 baseline | 44226 | 278436310.669434 | 348045.388336791017 | 234502.485344976943 | 8.422122990395 |
+| 5k-10k | 3A pure-book | 44226 | 278436310.669434 | 282164.680580649001 | 215946.571679226821 | 7.755690023332 |
+| 5k-10k | 3B hybrid | 44226 | 278436310.669434 | 282164.680580649001 | 215946.571679226821 | 7.755690023332 |
+| 10k-25k | V2 baseline | 9734 | 136754285.894524 | 170942.857368153636 | 80820.834649088778 | 5.909930655586 |
+| 10k-25k | 3A pure-book | 9734 | 136754285.894524 | 359525.146358892554 | 326777.921761862584 | 23.8952600004 |
+| 10k-25k | 3B hybrid | 9734 | 136754285.894524 | 359525.146358892554 | 326777.921761862584 | 23.8952600004 |
+| 25k+ | V2 baseline | 2640 | 128144817.912701 | 160181.022390876693 | 119420.460900039063 | 9.319179881421 |
+| 25k+ | 3A pure-book | 2640 | 128144817.912701 | 196907.31864754454 | 191320.162551295565 | 14.929996051938 |
+| 25k+ | 3B hybrid | 2640 | 128144817.912701 | 196907.31864754454 | 191320.162551295565 | 14.929996051938 |
 
 ## xSAUCE fee scenario sensitivity
 
