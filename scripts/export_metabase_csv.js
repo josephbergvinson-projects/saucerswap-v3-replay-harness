@@ -26,6 +26,14 @@ function copyCookieDb(dbPath) {
   const tmp = mkdtempSync(join(tmpdir(), 'rh02b-cookie-db-'));
   const copy = join(tmp, 'Cookies');
   cpSync(dbPath, copy);
+
+  for (const suffix of ['-wal', '-shm']) {
+    const sibling = `${dbPath}${suffix}`;
+    if (existsSync(sibling)) {
+      cpSync(sibling, `${copy}${suffix}`);
+    }
+  }
+
   return { tmp, copy };
 }
 
