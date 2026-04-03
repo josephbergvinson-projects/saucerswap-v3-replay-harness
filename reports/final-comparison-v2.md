@@ -2,17 +2,17 @@
 
 ## Source basis and scope
 
-- This v2 report adds the fee-inclusive layer requested after the originally published replay study.
-- The fee reconstruction in this document is anchored to the last retained structured reporting snapshot: `artifacts/rh09-benchmark-20260325/reporting-root/`.
-- The current `reports/final-comparison.md` on `main` reflects a later RH-12 hybrid-only execution rerun, but the matching structured lane CSVs/summaries were not retained, so exact fee reconstruction on that later basis is not possible from the mounted workspace.
-- To avoid mixing incompatible bases, the execution-quality tables and fee tables in this v2 document are all tied to the retained RH-09 structured snapshot.
-- The later RH-12 hybrid delta is still captured separately below so the report preserves the full study history.
+- This v2 report adds fee-aware and provider-economics comparison layers to the originally published replay study.
+- The fee reconstruction in this document is anchored to the retained structured reporting snapshot preserved in the project artifacts.
+- The current comparison surface on `main` reflects a later refreshed hybrid execution basis, but the matching structured lane CSVs/summaries were not retained for that later basis, so exact fee reconstruction there is not possible from the mounted workspace.
+- To avoid mixing incompatible bases, the execution-quality tables and fee tables in this v2 document are all tied to one retained structured snapshot.
+- A later hybrid-only execution delta is still captured separately below so the report preserves the study history without mixing incompatible bases.
 
 ## Changelog vs prior final report
 
 - Added explicit trader-fee, liquidity-side-earnings, and protocol-earnings surfaces for V2 / 3A / 3B.
 - Added xSAUCE fee sensitivity (`no_xsauce` vs `tier2_10pct`).
-- Added an explicit reconstruction note for the fee layer and a later-RH-12 delta note for 3B.
+- Added an explicit reconstruction note for the fee layer and a later hybrid-delta note for 3B.
 - Preserved the execution-quality comparison as a separate surface rather than silently replacing it with fee-inclusive metrics.
 
 ## Locked fee model used in this report
@@ -24,9 +24,9 @@
 
 ## Validation / reconstruction note
 
-- The retained RH-09 structured snapshot still validates cleanly at the aggregate, side, and bucket level.
-- Fee rows in this v2 report are deterministic transformations of retained `filled_notional_usdc` plus the locked RH-20/21 fee contract.
-- Because replay-unit lane files are no longer mounted, this report **cannot** surface exact replay-unit-level `v3_min_order_ineligible` counts or the exact RH-22 all-in trader-cost USD rollups that depend on row-level execution-shortfall reconstruction.
+- The retained structured snapshot still validates cleanly at the aggregate, side, and bucket level.
+- Fee rows in this v2 report are deterministic transformations of retained `filled_notional_usdc` values plus the locked fee contract used in the study.
+- Because replay-unit lane files are no longer mounted, this report **cannot** surface exact replay-unit-level `v3_min_order_ineligible` counts or exact all-in trader-cost USD rollups that depend on row-level execution-shortfall reconstruction.
 - V2 liquidity-side figures are aggregate active-LP fee accrual, not LP ROI. V3 liquidity-side figures are maker rebate capture, not full market-maker PnL.
 
 ## Execution-quality headline snapshot (retained structured basis)
@@ -93,16 +93,16 @@
 - 3B sits between 3A and V2: its explicit fee layer is lower than V2 because much of the flow remains on the pure book, but higher than 3A because the residual backstop inherits V2 fees.
 - The xSAUCE tier-2 case lowers explicit trader fees for 3A/3B while leaving maker rebates unchanged, with the discount flowing out of protocol take.
 
-## Later RH-12 hybrid-only rerun note
+## Later hybrid-only refresh note
 
-- The later RH-12 rerun improved 3B execution-quality metrics versus the retained RH-09 structured snapshot, especially in larger buckets.
-- Those hybrid-only execution deltas are preserved here for completeness, but fee totals in this v2 report remain tied to the retained RH-09 structured pack because the later filled-notional tables were not retained.
+- The later hybrid-only refresh improved 3B execution-quality metrics versus the retained structured snapshot, especially in larger buckets.
+- Those hybrid-only execution deltas are preserved here for completeness, but fee totals in this v2 report remain tied to the retained structured pack because the later filled-notional tables were not retained.
 
-# RH-12 before/after delta summary
+# Later hybrid before/after delta summary
 
 Comparison basis:
-- Before: `artifacts/rh09-benchmark-20260325/reporting-root/data/processed/`
-- After: `artifacts/rh12-large-clip-20260325/rerun-root/data/processed/`
+- Before: retained structured comparison basis
+- After: later refreshed hybrid basis
 - Lane: `3b_hybrid`
 
 ## Aggregate
@@ -150,5 +150,5 @@ Comparison basis:
 ## Current main report reference
 
 - `reports/final-comparison.md` remains preserved as the later execution-quality / parity-proxy report on `main`.
-- This v2 document does not overwrite that report basis; it adds the fee layer on the last retained structured snapshot and carries the later RH-12 hybrid delta separately.
-- The current main report still contains the latest RH-12 hybrid execution figures (for example 3B aggregate `fill_rate = 0.989470558433` and `avg_slippage_bps = 2.261091936527`), but exact fee totals on that later basis cannot be reconstructed without the missing structured lane outputs.
+- This v2 document does not overwrite that report basis; it adds the fee layer on the last retained structured snapshot and carries the later hybrid delta separately.
+- The current main report still contains the latest refreshed hybrid execution figures (for example 3B aggregate `fill_rate = 0.989470558433` and `avg_slippage_bps = 2.261091936527`), but exact fee totals on that later basis cannot be reconstructed without the missing structured lane outputs.
