@@ -254,8 +254,10 @@ Interpretation:
 
 - This is the first provider-side comparison in the study that subtracts an explicit adverse-selection-style proxy on both sides instead of comparing only protocol transfer.
 - On this proxy, V2 still retains the larger provider-side surface in aggregate because explicit LP fee accrual is large and the next-event divergence/LVR haircut remains smaller than total fee accrual.
+- That aggregate gap should **not** be read as proof that the order-book design is structurally inferior for market making. A passive V2 LP surface monetizes a broader share of flow by default, while an order-book maker monetizes flow more selectively and is paid mainly when spread capture is large enough to justify inventory risk.
 - For 3A and the pure-book leg of 3B, rebate-only transfer materially understated the provider-side picture. Most measured maker-side gross revenue comes from spread capture rather than rebate.
-- This still is **not** full LP ROI or full maker profitability. Inventory carry, quote persistence, queue effects, capital usage, and longer-horizon adverse selection remain outside scope.
+- The omitted factors still matter. Inventory carry, quote persistence, capital utilization, and longer-horizon adverse selection would likely reduce absolute maker profitability, but they do not all move the V2-versus-V3 comparison in the same direction because longer-horizon inventory/adverse-selection effects also burden V2 LPs, while capital efficiency may favor the order-book design.
+- This still is **not** full LP ROI or full maker profitability; it is a materially fairer proxy, not a final capital-and-inventory model.
 
 ### $25k+ symmetric provider-economics stress case
 
@@ -265,7 +267,7 @@ Interpretation:
 | Book-only | $1,056.00 | $196,907.32 | $5,587.16 | $191,320.16 | 14.93 |
 | Hybrid pure-book leg | $1,056.00 | $196,907.32 | $5,587.16 | $191,320.16 | 14.93 |
 
-Takeaway: in the hardest $25k+ bucket, the pure-book maker leg shows much stronger provider-side capture than the aggregate average because large completed clips widen realized spread capture materially while the next-event markout haircut stays comparatively small. That does not change the need for the hybrid backstop on completion, but it does show why gross spread and net provider-economics proxies both matter when interpreting the book leg.
+Takeaway: in the hardest $25k+ bucket, the pure-book maker leg shows much stronger provider-side capture than the aggregate average because large completed clips widen realized spread capture materially while the next-event markout haircut stays comparatively small. That is the strongest evidence in this report against a simple “V3 is structurally worse for market making” reading. The more plausible interpretation is that the current aggregate result mixes a real monetization-regime difference with an incomplete provider-profitability model: V2 monetizes more broad passive flow, while the order book monetizes difficult flow more selectively. That does not change the need for the hybrid backstop on completion, but it does show why gross spread and net provider-economics proxies both matter when interpreting the book leg.
 
 ## Tier-2 (10%) xSAUCE fee case
 
@@ -305,7 +307,7 @@ The study now supports six clear conclusions:
 3. **Hybrid is the best overall result in this study.** It preserves the slippage gain while materially improves completion and reduces remainder versus book-only.
 4. **The explicit fee-transfer layer strengthens the case against V2 without changing the preferred scenario.** V2 is the worst outcome on explicit trader fees, book-only is the cheapest synthetic path, and hybrid is the best combined price-plus-completion design.
 5. **The gross spread-capture proxy and symmetric provider-economics proxy make the provider-side comparison materially fairer.** Rebate-only transfer understated V3-style book-maker monetization, and gross-revenue-only surfaces still overstated both sides by omitting adverse-selection-style loss proxies.
-6. **The new provider-economics proxy does not change the core conclusion.** On this study-specific proxy, V2 still shows the larger aggregate provider-side surface, while the pure-book maker leg remains much stronger in the largest bucket. The preferred scenario still turns on trader execution quality plus completion, where hybrid remains the best overall result in this study.
+6. **The new provider-economics proxy does not imply that V3 is structurally inferior for market making.** On this study-specific proxy, V2 still shows the larger aggregate provider-side surface, while the pure-book maker leg remains much stronger in the largest bucket. The more plausible reading is a combination of broader passive V2 monetization plus incomplete provider-profitability modeling, rather than a definitive structural verdict against the order-book design. The preferred scenario still turns on trader execution quality plus completion, where hybrid remains the best overall result in this study.
 
 ## Appendix A — Report components
 
