@@ -92,15 +92,15 @@ Two explicit V3 scenarios are locked for RH-21 onward:
 - taker schedule: `12.0 bps`
 - xSAUCE discount: `10%`
 - effective taker fee paid: `10.8 bps`
-- maker rebate earned: `0.20 bps`
+- maker rebate earned: `0.18 bps`
 - rebate cap: `2.7 bps`
-- protocol net fee earned: `10.6 bps`
+- protocol net fee earned: `10.62 bps`
 - cap status: `does_not_bind`
 
 Per-record V3 identities:
 
 - `trader_fee_paid_usd = effective_taker_fee_bps * filled_notional_usd`
-- `maker_rebate_earned_usd = 0.20 bps * filled_notional_usd`
+- `maker_rebate_earned_usd = scenario maker_rebate_bps * filled_notional_usd`
 - `protocol_fee_earned_usd = protocol_net_fee_bps * filled_notional_usd`
 - `active_lp_fee_earned_usd = 0`
 
@@ -220,7 +220,7 @@ RH-21 / RH-22 / RH-23 are not acceptance-complete unless all of the following ho
 
 3. **Locked V3 math**
    - `no_xsauce` resolves to `12.0 / 0.20 / 11.8`
-   - `tier2_10pct` resolves to `10.8 / 0.20 / 10.6`
+   - `tier2_10pct` resolves to `10.8 / 0.18 / 10.62`
 
 4. **Rebate-cap guardrail**
    - the implementation proves the 25% cap logic exists

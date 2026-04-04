@@ -1,33 +1,35 @@
 # Final Comparison Report V2
 
-## Analytical frame
+## Source basis and scope
 
-- The tables below focus on fee-aware and provider-side comparisons for the replay study.
-- The execution-quality tables and fee tables are kept on one analytical basis.
-- A separate hybrid execution sensitivity table appears later rather than being blended into the fee tables.
-- That separation avoids mixing two analytical bases in one headline comparison.
+- This v2 report adds the fee-inclusive layer requested after the originally published replay study.
+- The fee reconstruction in this document is anchored to the last retained structured reporting snapshot: `artifacts/rh09-benchmark-20260325/reporting-root/`.
+- The current `reports/final-comparison.md` on `main` reflects a later RH-12 hybrid-only execution rerun, but the matching structured lane CSVs/summaries were not retained, so exact fee reconstruction on that later basis is not possible from the mounted workspace.
+- To avoid mixing incompatible bases, the execution-quality tables and fee tables in this v2 document are all tied to the retained RH-09 structured snapshot.
+- The later RH-12 hybrid delta is still captured separately below so the report preserves the full study history.
 
-## Included comparison layers
+## Changelog vs prior final report
 
-- explicit trader-fee, liquidity-side earnings, and protocol-earnings surfaces for V2 / 3A / 3B
-- xSAUCE fee sensitivity (`no_xsauce` vs `tier2_10pct`)
-- a symmetric provider-economics comparison layer
-- a separate hybrid execution sensitivity table rather than a mixed-basis headline table
+- Added explicit trader-fee, liquidity-side-earnings, and protocol-earnings surfaces for V2 / 3A / 3B.
+- Added xSAUCE fee sensitivity (`no_xsauce` vs `tier2_10pct`).
+- Added an explicit reconstruction note for the fee layer and a later-RH-12 delta note for 3B.
+- Preserved the execution-quality comparison as a separate surface rather than silently replacing it with fee-inclusive metrics.
 
-## Locked fee model
+## Locked fee model used in this report
 
 - **V2 WHBAR/USDC**: trader pays `15.0 bps`, active LPs earn `12.5 bps`, protocol earns `2.5 bps`.
 - **V3 WHBAR/USDC / no xSAUCE**: trader pays `12.0 bps`, maker earns `0.20 bps`, protocol earns `11.8 bps`.
-- **V3 WHBAR/USDC / tier 2 (10%)**: trader pays `10.8 bps`, maker earns `0.20 bps`, protocol earns `10.6 bps`.
+- **V3 WHBAR/USDC / tier 2 (10%)**: trader pays `10.8 bps`, maker earns `0.18 bps`, protocol earns `10.62 bps`.
 - **3B hybrid attribution rule**: pure-book notional uses the V3 schedule; the residual notional above 3A for the same segment is treated as V2 backstop notional and uses the V2 schedule.
 
-## Method note
+## Validation / reconstruction note
 
-- The fee rows below are deterministic transformations of available `filled_notional_usdc` values plus the fee contract specified below.
-- Some row-level diagnostics are not available on this basis, so the analysis emphasizes aggregate, side, and bucket comparisons rather than replay-unit-level exception counts.
+- The retained RH-09 structured snapshot still validates cleanly at the aggregate, side, and bucket level.
+- Fee rows in this v2 report are deterministic transformations of retained `filled_notional_usdc` plus the locked RH-20/21 fee contract.
+- Because replay-unit lane files are no longer mounted, this report **cannot** surface exact replay-unit-level `v3_min_order_ineligible` counts or the exact RH-22 all-in trader-cost USD rollups that depend on row-level execution-shortfall reconstruction.
 - V2 liquidity-side figures are aggregate active-LP fee accrual, not LP ROI. V3 liquidity-side figures are maker rebate capture, not full market-maker PnL.
 
-## Execution-quality headline snapshot
+## Execution-quality headline snapshot (retained structured basis)
 
 | Lane | Rows | Fill rate | Avg completion | Avg study slippage (bps) |
 | --- | --- | --- | --- | --- |
@@ -80,27 +82,27 @@
 | --- | --- | --- | --- | --- | --- |
 | V2 baseline | v2_fixed | 5,892,865.90 | 4,910,721.58 | 982,144.32 | 15 |
 | 3A pure-book | no_xsauce | 4,621,382.48 | 77,023.04 | 4,544,359.44 | 11.763502 |
-| 3A pure-book | tier2_10pct | 4,159,244.23 | 77,023.04 | 4,082,221.19 | 10.587151 |
+| 3A pure-book | tier2_10pct | 4,159,244.23 | 69,320.74 | 4,089,923.49 | 10.587151 |
 | 3B hybrid | no_xsauce | 4,662,788.54 | 111,528.09 | 4,551,260.45 | 11.868899 |
-| 3B hybrid | tier2_10pct | 4,200,650.29 | 111,528.09 | 4,089,122.20 | 10.692548 |
+| 3B hybrid | tier2_10pct | 4,200,650.29 | 103,825.79 | 4,096,824.50 | 10.692548 |
 
 ## Interpretation
 
 - V2 charges the highest explicit trader fee at a fixed `15 bps`, but routes all of that fee to active LPs plus the protocol.
 - 3A lowers explicit trader fees versus V2 while redirecting the liquidity-side transfer from LP accrual to maker rebate capture.
 - 3B sits between 3A and V2: its explicit fee layer is lower than V2 because much of the flow remains on the pure book, but higher than 3A because the residual backstop inherits V2 fees.
-- The xSAUCE tier-2 case lowers explicit trader fees for 3A/3B while leaving maker rebates unchanged, with the discount flowing out of protocol take.
+- The xSAUCE tier-2 case lowers explicit trader fees for 3A/3B and also trims maker rebates proportionally, with the remaining fee reduction flowing out of protocol take.
 
-## Hybrid execution sensitivity
+## Later RH-12 hybrid-only rerun note
 
-- A separate hybrid recalculation improved 3B execution-quality metrics versus the basis used for the fee tables, especially in larger buckets.
-- That sensitivity is shown separately below rather than blended into the fee tables.
+- The later RH-12 rerun improved 3B execution-quality metrics versus the retained RH-09 structured snapshot, especially in larger buckets.
+- Those hybrid-only execution deltas are preserved here for completeness, but fee totals in this v2 report remain tied to the retained RH-09 structured pack because the later filled-notional tables were not retained.
 
-# Hybrid execution sensitivity summary
+# RH-12 before/after delta summary
 
 Comparison basis:
-- Fee-table execution basis
-- Hybrid sensitivity basis
+- Before: `artifacts/rh09-benchmark-20260325/reporting-root/data/processed/`
+- After: `artifacts/rh12-large-clip-20260325/rerun-root/data/processed/`
 - Lane: `3b_hybrid`
 
 ## Aggregate
@@ -145,8 +147,8 @@ Comparison basis:
 | admissibility_pass_rows | 1353 | 1760 | +407 |
 | admissibility_fail_rows | 1287 | 880 | -407 |
 
-## Reading the hybrid sensitivity table
+## Current main report reference
 
-- The fee tables and execution-quality tables above are intentionally kept on one analytical basis.
-- The hybrid sensitivity table reflects a separate execution-only recalculation.
-- The two are shown side by side for interpretation, not blended into a single mixed-basis table.
+- `reports/final-comparison.md` remains preserved as the later execution-quality / parity-proxy report on `main`.
+- This v2 document does not overwrite that report basis; it adds the fee layer on the last retained structured snapshot and carries the later RH-12 hybrid delta separately.
+- The current main report still contains the latest RH-12 hybrid execution figures (for example 3B aggregate `fill_rate = 0.989470558433` and `avg_slippage_bps = 2.261091936527`), but exact fee totals on that later basis cannot be reconstructed without the missing structured lane outputs.

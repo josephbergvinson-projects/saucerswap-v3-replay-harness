@@ -14,7 +14,7 @@ On that proxy, V2 still shows the larger provider-side surface in aggregate: abo
 
 Explicit liquidity-side fee transfer still differs sharply across scenarios. V2 routes about $4.91M of explicit fee accrual to active LPs. Book-only routes about $77.0k of explicit maker rebate. Hybrid routes the same $77.0k maker rebate plus about $42.9k of residual V2 LP accrual, for about $119.9k of explicit liquidity-side fee transfer. The gross spread-capture and symmetric provider-economics layers show that the rebate is only one transfer component inside the V3-style book leg.
 
-The tier-2 10% xSAUCE case lowers explicit trader fees further for the synthetic scenarios without changing execution quality. Aggregate trader fees fall to about $4.16M for book-only and $4.21M for hybrid. In this fee schedule comparison, maker rebate and residual LP accrual stay flat because the discount comes out of protocol take rather than liquidity-side earnings.
+The tier-2 10% xSAUCE case lowers explicit trader fees further for the synthetic scenarios without changing execution quality. Aggregate trader fees fall to about $4.16M for book-only and $4.21M for hybrid. The tier also trims the modeled maker rebate on the pure-book leg while leaving residual V2 LP accrual unchanged, so the remaining fee reduction comes out of protocol take.
 
 ## Decision rule
 
@@ -84,7 +84,7 @@ The fee, spread-capture, and symmetric provider-economics tables below are deriv
 
 - **V2 WHBAR/USDC**: trader pays `15.0 bps`, active LPs earn `12.5 bps`, protocol earns `2.5 bps`.
 - **V3 WHBAR/USDC / no xSAUCE**: trader pays `12.0 bps`, maker earns `0.20 bps`, protocol earns `11.8 bps`.
-- **V3 WHBAR/USDC / tier 2 (10%)**: trader pays `10.8 bps`, maker earns `0.20 bps`, protocol earns `10.6 bps`.
+- **V3 WHBAR/USDC / tier 2 (10%)**: trader pays `10.8 bps`, maker earns `0.18 bps`, protocol earns `10.62 bps`.
 - **3B hybrid attribution rule**: pure-book notional uses the V3 schedule; the residual notional above 3A for the same segment is treated as V2 backstop notional and uses the V2 schedule.
 
 ### Metric definitions used in the main body
@@ -271,24 +271,25 @@ Takeaway: in the hardest $25k+ bucket, the pure-book maker leg shows much strong
 
 ## Tier-2 (10%) xSAUCE fee case
 
-The tier-2 xSAUCE case changes the fee schedule, not the execution path. Fill rate, completion, slippage, remainder, and gross spread capture therefore stay the same. What changes is the allocation of explicit fees: traders pay less, protocol take falls, and the measured liquidity-side transfer remains unchanged. In this model, tier-2 xSAUCE lowers trader fees only; it does not change the modeled maker rebate.
+The tier-2 xSAUCE case changes the fee schedule, not the execution path. Fill rate, completion, slippage, remainder, and gross spread capture therefore stay the same. What changes is the allocation of explicit fees: traders pay less, maker rebates on the pure-book leg also step down with the tier, residual V2 LP accrual stays unchanged, and protocol take falls by the balance. The rebate safety clamp remains non-binding in this case.
 
 ### Aggregate tier-2 results
 
 | Scenario | Trader fee (USD) | Maker rebate (USD) | Active LP accrual (USD) | Liquidity-side total (USD) | Protocol earnings (USD) | Trader fee (bps, requested) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | V2 baseline | $5,892,865.90 | $0.00 | $4,910,721.58 | $4,910,721.58 | $982,144.32 | 15.00 |
-| Book-only | $4,159,244.23 | $77,023.04 | $0.00 | $77,023.04 | $4,082,221.19 | 10.59 |
-| Hybrid | $4,210,703.00 | $77,023.04 | $42,882.31 | $119,905.35 | $4,090,797.65 | 10.72 |
+| Book-only | $4,159,244.23 | $69,320.74 | $0.00 | $69,320.74 | $4,089,923.49 | 10.59 |
+| Hybrid | $4,210,703.00 | $69,320.74 | $42,882.31 | $112,203.05 | $4,098,499.96 | 10.72 |
 
 Relative to the default no-xSAUCE schedule:
 
 - Book-only trader fees fall by about **$462.1k**.
 - Hybrid trader fees fall by about **$462.1k**.
-- Maker rebates and LP accrual are unchanged.
-- The discount comes out of protocol earnings, not liquidity-side earnings.
+- Maker rebates on the pure-book leg fall by about **$7.7k**.
+- Residual V2 LP accrual is unchanged.
+- The remaining discount comes out of protocol earnings.
 
-In the $25k+ bucket specifically, trader fees fall from **$63.36k** to **$57.02k** for book-only and from **$111.79k** to about **$105.45k** for hybrid, while the liquidity-side transfer remains unchanged.
+In the $25k+ bucket specifically, trader fees fall from **$63.36k** to **$57.02k** for book-only and from **$111.79k** to about **$105.45k** for hybrid, while the explicit liquidity-side transfer falls modestly because the maker rebate on the book leg also steps down.
 
 ## Benchmark normalization note
 
