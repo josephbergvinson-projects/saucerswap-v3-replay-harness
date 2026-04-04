@@ -1,20 +1,20 @@
 # Final Comparison Report V2
 
-## How to read this companion
+## Analytical frame
 
-- This companion focuses on fee-aware and provider-side comparison layers for the replay study.
-- The execution-quality tables and fee tables below are kept on one internally consistent analytical basis.
-- A separate later hybrid execution delta is shown later in the document rather than blended into the fee tables.
-- That separation is intentional: it avoids mixing two different analytical bases into a single headline table.
+- The tables below focus on fee-aware and provider-side comparisons for the replay study.
+- The execution-quality tables and fee tables are kept on one analytical basis.
+- A separate hybrid execution sensitivity table appears later rather than being blended into the fee tables.
+- That separation avoids mixing two analytical bases in one headline comparison.
 
-## What this companion adds
+## Included comparison layers
 
-- explicit trader-fee, liquidity-side-earnings, and protocol-earnings surfaces for V2 / 3A / 3B
+- explicit trader-fee, liquidity-side earnings, and protocol-earnings surfaces for V2 / 3A / 3B
 - xSAUCE fee sensitivity (`no_xsauce` vs `tier2_10pct`)
 - a symmetric provider-economics comparison layer
-- a separate later hybrid execution delta instead of silently replacing the fee-table basis
+- a separate hybrid execution sensitivity table rather than a mixed-basis headline table
 
-## Locked fee model used in this report
+## Locked fee model
 
 - **V2 WHBAR/USDC**: trader pays `15.0 bps`, active LPs earn `12.5 bps`, protocol earns `2.5 bps`.
 - **V3 WHBAR/USDC / no xSAUCE**: trader pays `12.0 bps`, maker earns `0.20 bps`, protocol earns `11.8 bps`.
@@ -23,8 +23,8 @@
 
 ## Method note
 
-- The fee rows in this companion are deterministic transformations of available `filled_notional_usdc` values plus the fee contract specified below.
-- Some row-level diagnostics are not available on this basis, so this companion emphasizes aggregate, side, and bucket comparisons rather than replay-unit-level exception counts.
+- The fee rows below are deterministic transformations of available `filled_notional_usdc` values plus the fee contract specified below.
+- Some row-level diagnostics are not available on this basis, so the analysis emphasizes aggregate, side, and bucket comparisons rather than replay-unit-level exception counts.
 - V2 liquidity-side figures are aggregate active-LP fee accrual, not LP ROI. V3 liquidity-side figures are maker rebate capture, not full market-maker PnL.
 
 ## Execution-quality headline snapshot
@@ -91,16 +91,16 @@
 - 3B sits between 3A and V2: its explicit fee layer is lower than V2 because much of the flow remains on the pure book, but higher than 3A because the residual backstop inherits V2 fees.
 - The xSAUCE tier-2 case lowers explicit trader fees for 3A/3B while leaving maker rebates unchanged, with the discount flowing out of protocol take.
 
-## Later hybrid execution delta
+## Hybrid execution sensitivity
 
-- A later hybrid recalculation improved 3B execution-quality metrics versus the basis used for the fee tables, especially in larger buckets.
-- That delta is shown separately below rather than blended into the fee tables.
+- A separate hybrid recalculation improved 3B execution-quality metrics versus the basis used for the fee tables, especially in larger buckets.
+- That sensitivity is shown separately below rather than blended into the fee tables.
 
-# Later hybrid delta summary
+# Hybrid execution sensitivity summary
 
 Comparison basis:
-- Earlier fee-table basis
-- Later hybrid execution basis
+- Fee-table execution basis
+- Hybrid sensitivity basis
 - Lane: `3b_hybrid`
 
 ## Aggregate
@@ -145,8 +145,8 @@ Comparison basis:
 | admissibility_pass_rows | 1353 | 1760 | +407 |
 | admissibility_fail_rows | 1287 | 880 | -407 |
 
-## Relationship between the fee tables and the later hybrid delta
+## Reading the hybrid sensitivity table
 
 - The fee tables and execution-quality tables above are intentionally kept on one analytical basis.
-- The later hybrid delta reflects a separate execution-only recalculation.
+- The hybrid sensitivity table reflects a separate execution-only recalculation.
 - The two are shown side by side for interpretation, not blended into a single mixed-basis table.
