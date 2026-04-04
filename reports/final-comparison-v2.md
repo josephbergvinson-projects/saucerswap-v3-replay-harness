@@ -19,7 +19,7 @@
 
 - **V2 WHBAR/USDC**: trader pays `15.0 bps`, active LPs earn `12.5 bps`, protocol earns `2.5 bps`.
 - **V3 WHBAR/USDC / no xSAUCE**: trader pays `12.0 bps`, maker earns `0.20 bps`, protocol earns `11.8 bps`.
-- **V3 WHBAR/USDC / tier 2 (10%)**: trader pays `10.8 bps`, maker earns `0.18 bps`, protocol earns `10.62 bps`.
+- **V3 WHBAR/USDC / tier 2 (10%)**: trader pays `10.8 bps`, maker earns `0.22 bps`, protocol earns `10.58 bps`.
 - **3B hybrid attribution rule**: pure-book notional uses the V3 schedule; the residual notional above 3A for the same segment is treated as V2 backstop notional and uses the V2 schedule.
 
 ## Validation / reconstruction note
@@ -82,16 +82,16 @@
 | --- | --- | --- | --- | --- | --- |
 | V2 baseline | v2_fixed | 5,892,865.90 | 4,910,721.58 | 982,144.32 | 15 |
 | 3A pure-book | no_xsauce | 4,621,382.48 | 77,023.04 | 4,544,359.44 | 11.763502 |
-| 3A pure-book | tier2_10pct | 4,159,244.23 | 69,320.74 | 4,089,923.49 | 10.587151 |
+| 3A pure-book | tier2_10pct | 4,159,244.23 | 84,725.35 | 4,074,518.89 | 10.587151 |
 | 3B hybrid | no_xsauce | 4,662,788.54 | 111,528.09 | 4,551,260.45 | 11.868899 |
-| 3B hybrid | tier2_10pct | 4,200,650.29 | 103,825.79 | 4,096,824.50 | 10.692548 |
+| 3B hybrid | tier2_10pct | 4,200,650.29 | 119,230.40 | 4,081,419.90 | 10.692548 |
 
 ## Interpretation
 
 - V2 charges the highest explicit trader fee at a fixed `15 bps`, but routes all of that fee to active LPs plus the protocol.
 - 3A lowers explicit trader fees versus V2 while redirecting the liquidity-side transfer from LP accrual to maker rebate capture.
 - 3B sits between 3A and V2: its explicit fee layer is lower than V2 because much of the flow remains on the pure book, but higher than 3A because the residual backstop inherits V2 fees.
-- The xSAUCE tier-2 case lowers explicit trader fees for 3A/3B and also trims maker rebates proportionally, with the remaining fee reduction flowing out of protocol take.
+- The xSAUCE tier-2 case lowers explicit trader fees for 3A/3B while increasing maker rebates modestly, with the remaining fee reduction flowing out of protocol take.
 
 ## Later RH-12 hybrid-only rerun note
 
