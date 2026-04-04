@@ -47,8 +47,8 @@ class FeePolicyTests(unittest.TestCase):
         self.assertAlmostEqual(fields['protocol_fee_earned_usd'], 1.18)
         scenario_totals = scenario_totals_from_breakdown(fields['fee_route_breakdown'])
         self.assertAlmostEqual(scenario_totals['tier2_10pct']['trader_fee_paid_usd'], 1.08)
-        self.assertAlmostEqual(scenario_totals['tier2_10pct']['maker_rebate_earned_usd'], 0.018)
-        self.assertAlmostEqual(scenario_totals['tier2_10pct']['protocol_fee_earned_usd'], 1.062)
+        self.assertAlmostEqual(scenario_totals['tier2_10pct']['maker_rebate_earned_usd'], 0.022)
+        self.assertAlmostEqual(scenario_totals['tier2_10pct']['protocol_fee_earned_usd'], 1.058)
 
     def test_hybrid_fee_fields_blend_v3_and_v2_routes(self) -> None:
         fields = build_hybrid_fee_fields(

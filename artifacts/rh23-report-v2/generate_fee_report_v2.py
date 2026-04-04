@@ -68,8 +68,8 @@ V3_DEFAULT = {
 V3_TIER2 = {
     'scenario_id': 'tier2_10pct',
     'trader_bps': 10.8,
-    'maker_bps': 0.18,
-    'protocol_bps': 10.62,
+    'maker_bps': 0.22,
+    'protocol_bps': 10.58,
 }
 
 
@@ -309,7 +309,7 @@ def build_report(aggregate_rows: list[SegmentRow], side_rows: list[SegmentRow], 
         '',
         '- **V2 WHBAR/USDC**: trader pays `15.0 bps`, active LPs earn `12.5 bps`, protocol earns `2.5 bps`.',
         '- **V3 WHBAR/USDC / no xSAUCE**: trader pays `12.0 bps`, maker earns `0.20 bps`, protocol earns `11.8 bps`.',
-        '- **V3 WHBAR/USDC / tier 2 (10%)**: trader pays `10.8 bps`, maker earns `0.18 bps`, protocol earns `10.62 bps`.',
+        '- **V3 WHBAR/USDC / tier 2 (10%)**: trader pays `10.8 bps`, maker earns `0.22 bps`, protocol earns `10.58 bps`.',
         '- **3B hybrid attribution rule**: pure-book notional uses the V3 schedule; the residual notional above 3A for the same segment is treated as V2 backstop notional and uses the V2 schedule.',
         '',
         '## Validation / reconstruction note',
@@ -380,7 +380,7 @@ def build_report(aggregate_rows: list[SegmentRow], side_rows: list[SegmentRow], 
         '- V2 charges the highest explicit trader fee at a fixed `15 bps`, but routes all of that fee to active LPs plus the protocol.',
         '- 3A lowers explicit trader fees versus V2 while redirecting the liquidity-side transfer from LP accrual to maker rebate capture.',
         '- 3B sits between 3A and V2: its explicit fee layer is lower than V2 because much of the flow remains on the pure book, but higher than 3A because the residual backstop inherits V2 fees.',
-        '- The xSAUCE tier-2 case lowers explicit trader fees for 3A/3B and also trims maker rebates proportionally, with the remaining fee reduction flowing out of protocol take.',
+        '- The xSAUCE tier-2 case lowers explicit trader fees for 3A/3B while increasing maker rebates modestly, with the remaining fee reduction flowing out of protocol take.',
         '',
         '## Later RH-12 hybrid-only rerun note',
         '',

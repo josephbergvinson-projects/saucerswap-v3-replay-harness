@@ -166,9 +166,9 @@ The symmetric provider-economics layer uses the next row in each lane file as th
 | --- | --- | --- | --- | --- | --- | --- |
 | V2 baseline | v2_fixed | 5892865.900778388605 | 4910721.583980700001 | 982144.316796322237 | 39.323724376584 | Fixed V2 fee split: active-LP accrual plus protocol cut. Default reported V3 scenario: v2_fixed. |
 | 3A pure-book | no_xsauce | 4621382.480131900869 | 77023.041335476708 | 4544359.438796410337 | 16.400956984113 | Liquidity-side earnings are maker rebates only. Default reported V3 scenario: no_xsauce. V3 min-order ineligible rows surfaced separately: 9729. |
-| 3A pure-book | tier2_10pct | 4159244.232117983513 | 69320.737201929037 | 4089923.494916054476 | 15.22460682836 | Liquidity-side earnings are maker rebates only. Default reported V3 scenario: no_xsauce. V3 min-order ineligible rows surfaced separately: 9729. |
+| 3A pure-book | tier2_10pct | 4159244.232117983513 | 84725.3454690243788 | 4074518.8866489591342 | 15.22460682836 | Liquidity-side earnings are maker rebates only. Default reported V3 scenario: no_xsauce. V3 min-order ineligible rows surfaced separately: 9729. |
 | 3B hybrid | no_xsauce | 4672841.251625726931 | 119905.350914102295 | 4552935.90071191173 | 16.807077128237 | Blended route: V3 pure-book fees plus V2 residual-backstop fees when routed. Default reported V3 scenario: no_xsauce. V3 min-order ineligible rows surfaced separately: 9729. |
-| 3B hybrid | tier2_10pct | 4210703.003612215631 | 112203.046780554624 | 4098499.956831661007 | 15.630726972485 | Blended route: V3 pure-book fees plus V2 residual-backstop fees when routed. Default reported V3 scenario: no_xsauce. V3 min-order ineligible rows surfaced separately: 9729. |
+| 3B hybrid | tier2_10pct | 4210703.003612215631 | 127607.6550476499658 | 4083095.3485645656652 | 15.630726972485 | Blended route: V3 pure-book fees plus V2 residual-backstop fees when routed. Default reported V3 scenario: no_xsauce. V3 min-order ineligible rows surfaced separately: 9729. |
 
 ## Benchmark panel status
 

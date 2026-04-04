@@ -41,9 +41,9 @@ fees:
       tier2_10pct:
         xsauce_discount_fraction: 0.10
         effective_taker_fee_bps: 10.8
-        maker_rebate_bps: 0.18
+        maker_rebate_bps: 0.22
         rebate_cap_bps: 2.7
-        protocol_net_fee_bps: 10.62
+        protocol_net_fee_bps: 10.58
         rebate_cap_status: "does_not_bind"
 
   hybrid_fee_attribution:
